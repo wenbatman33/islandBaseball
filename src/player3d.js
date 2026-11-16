@@ -78,7 +78,8 @@ function tintedMaterial(base, { jersey, accent, pants, skin }, creamTop) {
 /**
  * 建立一位球員（沿用舊介面的參數）。
  * opts: jersey / accent / pants 球隊配色；skin 膚色；bat 是否拿球棒。
- * 目前模型不支援的舊參數會被忽略：hair、hairStyle、no（背號固定 17）、icon、helmet、glove、gear 的護具。
+ * glove：非 0 時戴手套（守備員）；helmet：非 0 時戴打擊頭盔、不戴帽子（打者）。
+ * 目前模型不支援的舊參數會被忽略：hair、hairStyle、no（背號固定 17）、icon、gear 的護具。
  */
 export function makePlayer(opts) {
   if (!SRC) throw new Error('球員模型尚未載入，請先 await loadPlayerModel()');
@@ -103,6 +104,7 @@ export function makePlayer(opts) {
   });
   const group = new THREE.Group();
   group.add(inner);
+  addGear(inner, opts);
   const mixer = new THREE.AnimationMixer(inner);
   const actions = {};
   for (const [name, clip] of Object.entries(SRC.clips)) actions[name] = mixer.clipAction(clip);
@@ -113,6 +115,68 @@ export function makePlayer(opts) {
   group.userData.mixer = mixer;
   group.userData.actions = actions;
   return group;
+}
+
+// ── 裝備：守備員的手套、打者的頭盔。先在模型的靜止姿勢擺好位置，再掛到骨頭上跟著動 ──
+const gearGeo = {};
+const gearMat = {};
+function addGear(inner, opts) {
+  if (!opts.glove && !opts.helmet) return;
+  inner.updateMatrixWorld(true);
+  const bone = (name) => inner.getObjectByName(name);
+  const mat = (key, color, rough) => gearMat[key] || (gearMat[key] = new THREE.MeshStandardMaterial({ color, roughness: rough }));
+  const mesh = (geo, material) => {
+    const m = new THREE.Mesh(geo, material);
+    m.castShadow = true;
+    m.frustumCulled = false;
+    return m;
+  };
+  if (opts.glove && opts.gear !== 'ump') {
+    // 手套戴在模型的左手（左投的球員整個模型會鏡射，手套就到右手）
+    const hand = bone('handL');
+    if (hand) {
+      gearGeo.mitt = gearGeo.mitt || new THREE.SphereGeometry(0.1, 18, 14);
+      gearGeo.thumb = gearGeo.thumb || new THREE.SphereGeometry(0.045, 12, 10);
+      const leather = mat('leather', '#8a5527', 0.75);
+      const glove = new THREE.Group();
+      const palm = mesh(gearGeo.mitt, leather);
+      palm.scale.set(0.95, 1.2, 0.62);
+      const thumb = mesh(gearGeo.thumb, leather);
+      thumb.position.set(-0.01, 0.03, 0.09);
+      thumb.scale.set(0.9, 1.5, 0.9);
+      glove.add(palm, thumb);
+      glove.position.set(0.385, 0.62, 0); // 左手掌心再往指尖一點（模型座標：X 左、Y 上、Z 前）
+      glove.rotation.z = 0.65; // 順著手臂的斜度
+      inner.add(glove);
+      glove.updateMatrixWorld(true);
+      hand.attach(glove);
+    }
+  }
+  if (opts.helmet) {
+    const head = bone('head');
+    const cap = inner.getObjectByName('cap');
+    if (head) {
+      if (cap) cap.visible = false; // 打者戴頭盔，不戴帽子
+      gearGeo.shell = gearGeo.shell || new THREE.SphereGeometry(0.345, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.6);
+      gearGeo.brim = gearGeo.brim || new THREE.CylinderGeometry(0.27, 0.27, 0.03, 28, 1, false, -Math.PI / 2, Math.PI);
+      gearGeo.flap = gearGeo.flap || new THREE.SphereGeometry(0.15, 18, 12);
+      const shellMat = new THREE.MeshStandardMaterial({ color: opts.accent || '#1f5a4c', roughness: 0.32, metalness: 0.05 });
+      const helmet = new THREE.Group();
+      const shell = mesh(gearGeo.shell, shellMat);
+      const brim = mesh(gearGeo.brim, shellMat);
+      brim.position.set(0, -0.045, 0.2);
+      brim.rotation.x = 0.16;
+      // 護耳在面向投手的那一側。右打者的左耳朝投手；左打者整個模型鏡射，護耳也跟著換邊
+      const flap = mesh(gearGeo.flap, shellMat);
+      flap.position.set(0.3, -0.13, 0.0);
+      flap.scale.set(0.42, 1, 0.95);
+      helmet.add(shell, brim, flap);
+      helmet.position.set(0, 1.44, -0.06); // 頭的中心略高處
+      inner.add(helmet);
+      helmet.updateMatrixWorld(true);
+      head.attach(helmet);
+    }
+  }
 }
 
 // 單次動作：把「遊戲裡的進度 0–1」對應到動作檔的時間（秒）。

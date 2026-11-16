@@ -473,7 +473,61 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     });
   }
 
+  // ── 攻守交替：守備的那一隊跑回休息區，另一隊從休息區跑上場就定位 ──
+  const DUG = [[-19.3, 2.0], [19.3, 2.0]]; // 休息區前方：客隊在三壘側、主隊在一壘側
+  const SWAP_T = 6.5;
+  let swap = null;
+  function startSwap(outTeam) {
+    const list = [];
+    for (const team of [0, 1]) {
+      const [dx, dz] = DUG[team];
+      const sx = Math.sign(dx);
+      Object.entries(fielders[team]).forEach(([pos, a], i) => {
+        // 休息區前一字排開（沿著休息區的方向錯開）
+        const k = (i - 4) * 1.5;
+        const spot = [dx + sx * 0.707 * k, 0, dz - 0.707 * k];
+        const home = [a.home[0], pos === 'P' ? MOUND_Y : 0, a.home[1]];
+        const leaving = team === outTeam;
+        const from = leaving ? [a.group.position.x, a.group.position.y, a.group.position.z] : spot;
+        const to = leaving ? spot : home;
+        a.group.visible = true;
+        a.group.position.set(from[0], from[1], from[2]);
+        a.face(to[0], to[2]);
+        a.set('run');
+        // 下場的先動，上場的晚一點出發；離得遠的外野手早一點起跑
+        list.push({ a, pos, from, to, leaving, delay: leaving ? i * 0.05 : 0.9 + i * 0.06, done: false });
+      });
+    }
+    swap = { t: 0, list };
+    camMode = 'follow';
+    ball.visible = false;
+  }
+  function updateSwap(dt) {
+    swap.t += dt;
+    for (const m of swap.list) {
+      if (m.done) continue;
+      const k = clamp((swap.t - m.delay) / (SWAP_T - 1.3 - m.delay), 0, 1);
+      const e = k * k * (3 - 2 * k);
+      m.a.group.position.set(lerp(m.from[0], m.to[0], e), lerp(m.from[1], m.to[1], e), lerp(m.from[2], m.to[2], e));
+      if (k >= 1) {
+        m.done = true;
+        if (m.leaving) m.a.group.visible = false;
+        else {
+          if (m.pos === 'C') m.a.group.rotation.y = Math.PI;
+          else m.a.face(0, 0);
+          m.a.set(m.pos === 'P' ? 'idle' : m.pos === 'C' ? 'crouch' : 'ready');
+        }
+      }
+    }
+    if (swap.t >= SWAP_T) {
+      swap = null;
+      resetField();
+      beginPA();
+    }
+  }
+
   function switchHalf() {
+    const outTeam = fld(); // 這半局守備的隊伍，等一下要跑下場
     runners.forEach((r) => root.remove(r.actor.group));
     runners = [];
     removeBatter();
@@ -492,15 +546,13 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     }
     S.lines[S.half][S.inning - 1] = 0;
     batterInfo = null;
-    ui.dip();
-    resetField();
+    startSwap(outTeam);
     ui.pitchMenu(null);
     ui.hint('');
     refresh();
     ui.banner({ kicker: '攻守交替', title: `${S.inning} 局${S.half ? '下' : '上'}`, sub: `${teams[bat()].name} 進攻` }, 2.2);
     sayParts(line.change(S.inning, S.half, teams[bat()].name), true);
-    setPhase('switch');
-    schedule(2.4, beginPA);
+    setPhase('switch'); // 兩隊跑完位置後由 updateSwap 開始下一個打席
   }
 
   function gameOver() {
@@ -930,7 +982,10 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     }
     if (phase === 'play' && play) updatePlay(dt);
 
-    for (const a of Object.values(fielders[fld()])) a.update(dt);
+    if (swap) {
+      updateSwap(dt);
+      for (const set of fielders) for (const a of Object.values(set)) a.update(dt);
+    } else for (const a of Object.values(fielders[fld()])) a.update(dt);
     if (batter) batter.update(dt);
     for (const r of runners) r.actor.update(dt);
     ump.update(dt);
