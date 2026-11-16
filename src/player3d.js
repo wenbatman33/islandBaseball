@@ -1,11 +1,10 @@
 // 遊戲用的球員：載入帶骨架與動作的模型（public/models/player/player_game.glb），
-// 對外介面：makePlayer / makeActor。
+// 頭、頭髮、帽子都用模型本身雕好的造型，不用程式另外捏。
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
-// 守備位置（球場座標：x 橫向、z 往外野為負）
+// 守備位置（本壘在原點，+X 一壘側，-Z 外野方向）
 export const FIELD_POS = {
   P: [0, -18.44],
   C: [0, 1.7],
@@ -30,7 +29,7 @@ export function loadPlayerModel(url = '/models/player/player_game.glb') {
         const clips = {};
         // 動作檔裡的縮放軌道全是 1，拿掉後才能用骨頭縮放做出每個人不同的頭型
         gltf.animations.forEach((c) => {
-          c.tracks = c.tracks.filter((t) => !t.name.endsWith('.scale') && t.name !== 'head.position'); // 頭的位置也由程式決定（見 HEAD_DROP）
+          c.tracks = c.tracks.filter((t) => !t.name.endsWith('.scale'));
           clips[c.name] = c;
         });
         SRC = { scene: gltf.scene, clips };
@@ -47,7 +46,7 @@ export function loadPlayerModel(url = '/models/player/player_game.glb') {
 const REF_SKIN = new THREE.Color('#f2c29e');
 // 背號與姓名印在背上的範圍、臉部特徵貼在臉上的範圍（模型靜止姿勢的座標：x0, y0, 寬, 高）
 const BACK_RECT = new THREE.Vector4(-0.135, 0.735, 0.27, 0.25);
-const FACE_RECT = new THREE.Vector4(-0.24, 1.055, 0.48, 0.48);
+const FACE_RECT = new THREE.Vector4(-0.32, 1.02, 0.64, 0.64);
 let BLANK = null;
 const blankTex = () => BLANK || (BLANK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1));
 
@@ -94,251 +93,10 @@ function backTexture(no, name) {
   });
 }
 
-// ── 頭部的架構：一顆乾淨的圓頭（膚色）＋ 獨立的頭髮零件 ＋ 畫上去的五官與瀏海。三者互不影響 ──
-// 圓頭的中心與半徑（模型靜止姿勢的座標）。原本模型上連著頭髮一起捏的頭，在著色器裡整顆不畫
-const HEAD = { c: new THREE.Vector3(0, 1.335, -0.02), r: new THREE.Vector3(0.268, 0.28, 0.288) };
-// 頭型：從球開始捏成 Q 版的臉型（不是正圓）——臉頰最寬、下巴往內收、臉的正面比較平、頭頂略高。
-// 頭和頭髮的髮片都用同一個函式變形，髮片才會服貼在頭上
-function shapeHead(geometry) {
-  const p = geometry.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    const y = p.getY(i);
-    const z = p.getZ(i);
-    const cheek = 1 + 0.13 * Math.exp(-(((y + 0.32) / 0.36) ** 2)); // 臉頰鼓出來
-    const j = y < -0.42 ? (-y - 0.42) / 0.58 : 0;
-    const jaw = 1 - 0.34 * j * j; // 下巴往內收
-    p.setXYZ(i, x * cheek * jaw, y > 0 ? y * 1.05 : y * 0.97, z * (z > 0 ? 0.9 : 1.03) * (1 - 0.14 * j * j));
-  }
-  geometry.deleteAttribute('uv');
-  geometry.deleteAttribute('normal');
-  const g = mergeVertices(geometry); // 合併接縫的重複頂點，重算法線時才不會在側面留下一條線
-  g.computeVertexNormals();
-  return g;
-}
-const NECK_CUT = 1.03; // 領口以上（舊的脖子和頭）都不畫，改用獨立的脖子零件接新的頭
-const HEAD_DROP = 0.04; // 整顆頭（連同帽子、頭盔、面罩）往下壓，Q 版的身材幾乎看不到脖子
-
-// 眼神的基調是「有鬥志」：眼尾上揚、上眼皮壓下來一點、眉毛壓低並往眉心斜下去貼著眼睛上緣
-const EYES = {
-  // w/h：眼睛半寬半高；tilt：眼尾上揚的角度；lid：上眼皮蓋住的比例；iris：瞳孔大小；flick：眼尾的勾
-  round: { w: 0.05, h: 0.054, tilt: 0.1, lid: 0.13, iris: 0.82 },
-  oval: { w: 0.042, h: 0.058, tilt: 0.08, lid: 0.11, iris: 0.86 },
-  keen: { w: 0.052, h: 0.05, tilt: 0.16, lid: 0.24, iris: 0.86 },
-  sharp: { w: 0.056, h: 0.042, tilt: 0.22, lid: 0.18, iris: 0.9, flick: 1 },
-  bold: { w: 0.05, h: 0.05, tilt: 0.14, lid: 0.18, iris: 0.78 },
-  small: { w: 0.038, h: 0.042, tilt: 0.13, lid: 0.12, iris: 0.82 },
-  fierce: { w: 0.056, h: 0.046, tilt: 0.26, lid: 0.24, iris: 0.86, flick: 1 },
-  calm: { w: 0.052, h: 0.048, tilt: 0.05, lid: 0.3, iris: 0.88 },
-};
-const BROWS = {
-  // 內側、控制點、外側（相對眉心，y 往上為正）與粗細。內側都比外側低，才有壓著眼睛的氣勢
-  arch: [[-0.052, -0.016], [0, 0.016], [0.056, 0.006], 0.018],
-  flat: [[-0.052, -0.014], [0, 0.0], [0.056, 0.012], 0.022],
-  angry: [[-0.054, -0.024], [0, 0.0], [0.056, 0.022], 0.021],
-  bold: [[-0.05, -0.018], [0, 0.004], [0.052, 0.014], 0.027],
-  thin: [[-0.052, -0.016], [0, 0.01], [0.058, 0.012], 0.011],
-  short: [[-0.036, -0.014], [0, 0.0], [0.034, 0.012], 0.026],
-};
-// 瀏海下緣的高度（x 為橫向位置）。額頭是光滑的圓頭，所以瀏海可以自由畫
-const BANGS = {
-  short: (x) => 1.452 - 0.16 * x * x + 0.005 * Math.sin(x * 70),
-  straight: (x) => 1.392 + 0.7 * x * x + 0.004 * Math.sin(x * 90),
-  side: (x) => 1.415 - 0.2 * x + 0.5 * x * x + 0.005 * Math.sin(x * 60),
-  part: (x) => 1.46 - 0.4 * Math.abs(x) + 0.5 * x * x,
-  spiky: (x) => 1.425 + 0.024 * (2 * Math.abs((((x * 11) % 1) + 1) % 1 - 0.5)) - 0.1 * x * x,
-  mshape: (x) => 1.44 - 0.045 * Math.cos(x * 15) - 0.3 * x * x,
-  buzz: (x) => 1.468 - 0.1 * x * x,
-};
-function drawFace(ctx, S, look, hairCss, browCss) {
-  const X = (x) => ((x - FACE_RECT.x) / FACE_RECT.z) * S;
-  const Y = (y) => (1 - (y - FACE_RECT.y) / FACE_RECT.w) * S;
-  const L = (v) => (v / FACE_RECT.z) * S;
-  const hc = new THREE.Color(hairCss);
-  const rgb = (c, k = 1) => `rgb(${Math.round(Math.min(1, c.r * k) * 255)},${Math.round(Math.min(1, c.g * k) * 255)},${Math.round(Math.min(1, c.b * k) * 255)})`;
-  const INK = '#1c1512';
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  // 臉頰的紅暈
-  for (const sx of [-1, 1]) {
-    const g = ctx.createRadialGradient(X(sx * 0.155), Y(1.185), 0, X(sx * 0.155), Y(1.185), L(0.05));
-    g.addColorStop(0, 'rgba(238,120,100,0.3)');
-    g.addColorStop(1, 'rgba(238,120,100,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(X(sx * 0.155) - L(0.06), Y(1.185) - L(0.06), L(0.12), L(0.12));
-  }
-
-  // 眼睛
-  const E = EYES[look.eyes] || EYES.round;
-  const iris = new THREE.Color(look.iris || '#3a2518');
-  for (const sx of [-1, 1]) {
-    ctx.save();
-    ctx.translate(X(sx * F.eyeX), Y(F.eyeY));
-    ctx.scale(sx, 1); // 之後 +x 是眼尾（外側）
-    if (E.dot) {
-      ctx.fillStyle = INK;
-      ctx.beginPath();
-      ctx.arc(0, 0, L(E.dot), 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(sx * L(E.dot * 0.32), -L(E.dot * 0.36), L(E.dot * 0.26), 0, Math.PI * 2);
-      ctx.fill();
-    } else if (E.arc) {
-      // 笑瞇的眼睛：一道往上彎的弧線
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = L(0.012);
-      ctx.beginPath();
-      ctx.moveTo(-L(0.046), L(0.012));
-      ctx.quadraticCurveTo(0, -L(0.04), L(0.048), L(0.012));
-      ctx.stroke();
-    } else {
-      ctx.rotate(-E.tilt);
-      const w = L(E.w);
-      const h = L(E.h);
-      const y0 = -h + 2 * h * E.lid; // 上眼皮的位置
-      const xc = w * Math.sqrt(Math.max(0, 1 - (y0 / h) ** 2));
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(0, 0, w, h, 0, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.beginPath();
-      ctx.rect(-w * 2, y0, w * 4, h * 3);
-      ctx.clip();
-      ctx.fillStyle = '#fbf5ec';
-      ctx.fillRect(-w, -h, w * 2, h * 2);
-      const r = Math.min(w, h) * E.iris;
-      const ix = -w * 0.06;
-      const iy = h * 0.06;
-      const g = ctx.createLinearGradient(0, iy - r, 0, iy + r);
-      g.addColorStop(0, rgb(iris, 0.45));
-      g.addColorStop(1, rgb(iris, 1.25));
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(ix, iy, r, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#120c0a';
-      ctx.beginPath();
-      ctx.arc(ix, iy, r * 0.5, 0, Math.PI * 2);
-      ctx.fill();
-      // 反光固定在畫面的同一側（光從同一個方向來），所以要抵消左右鏡射
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(ix + sx * r * 0.36, iy - r * 0.3, r * 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(ix - sx * r * 0.34, iy + r * 0.42, r * 0.12, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-      // 輪廓：下緣細線、上眼皮粗線
-      ctx.strokeStyle = INK;
-      ctx.lineWidth = L(0.0035);
-      ctx.beginPath();
-      const a0 = Math.asin(Math.max(-1, Math.min(1, y0 / h)));
-      ctx.ellipse(0, 0, w, h, 0, a0, Math.PI - a0);
-      ctx.stroke();
-      ctx.lineWidth = L(0.014);
-      ctx.beginPath();
-      if (E.lid > 0.02) {
-        ctx.moveTo(-xc, y0);
-        ctx.quadraticCurveTo(0, y0 - h * 0.16, xc, y0);
-      } else ctx.ellipse(0, 0, w, h, 0, Math.PI * 1.04, Math.PI * 1.96);
-      if (E.flick) ctx.lineTo(xc + w * 0.3, y0 - h * 0.3);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  // 眉毛
-  const B = BROWS[look.brows] || BROWS.arch;
-  ctx.strokeStyle = rgb(new THREE.Color(browCss || hairCss), 0.82);
-  ctx.lineWidth = L(B[3]);
-  for (const sx of [-1, 1]) {
-    const px = (p) => X(sx * (F.eyeX + 0.006 + p[0]));
-    const py = (p) => Y(F.browY + p[1]);
-    ctx.beginPath();
-    ctx.moveTo(px(B[0]), py(B[0]));
-    ctx.quadraticCurveTo(px(B[1]), py(B[1]), px(B[2]), py(B[2]));
-    ctx.stroke();
-  }
-
-  // 嘴巴
-  const mx = X(0);
-  const my = Y(F.mouthY);
-  ctx.strokeStyle = '#8f4130';
-  ctx.lineWidth = L(0.0075);
-  const M = look.mouth || 'smile';
-  ctx.beginPath();
-  if (M === 'smile') {
-    ctx.moveTo(mx - L(0.05), my - L(0.008));
-    ctx.quadraticCurveTo(mx, my + L(0.03), mx + L(0.05), my - L(0.008));
-    ctx.stroke();
-  } else if (M === 'grin') {
-    ctx.moveTo(mx - L(0.054), my - L(0.01));
-    ctx.quadraticCurveTo(mx, my + L(0.058), mx + L(0.054), my - L(0.01));
-    ctx.closePath();
-    ctx.fillStyle = '#7a2a26';
-    ctx.fill();
-    ctx.save();
-    ctx.clip();
-    ctx.fillStyle = '#fffaf2';
-    ctx.fillRect(mx - L(0.06), my - L(0.012), L(0.12), L(0.014));
-    ctx.restore();
-    ctx.stroke();
-  } else if (M === 'flat') {
-    ctx.moveTo(mx - L(0.034), my);
-    ctx.lineTo(mx + L(0.034), my);
-    ctx.stroke();
-  } else if (M === 'smirk') {
-    ctx.moveTo(mx - L(0.04), my + L(0.004));
-    ctx.quadraticCurveTo(mx + L(0.012), my + L(0.016), mx + L(0.05), my - L(0.014));
-    ctx.stroke();
-  } else if (M === 'firm') {
-    // 抿著嘴、嘴角微微上揚
-    ctx.moveTo(mx - L(0.04), my + L(0.002));
-    ctx.quadraticCurveTo(mx, my + L(0.012), mx + L(0.04), my + L(0.002));
-    ctx.stroke();
-  } else if (M === 'cat') {
-    ctx.moveTo(mx - L(0.04), my - L(0.006));
-    ctx.quadraticCurveTo(mx - L(0.02), my + L(0.024), mx, my - L(0.004));
-    ctx.quadraticCurveTo(mx + L(0.02), my + L(0.024), mx + L(0.04), my - L(0.006));
-    ctx.stroke();
-  } else if (M === 'grit') {
-    // 咬牙：露出一排牙齒
-    ctx.fillStyle = '#fffaf2';
-    ctx.beginPath();
-    ctx.roundRect(mx - L(0.046), my - L(0.014), L(0.092), L(0.03), L(0.012));
-    ctx.fill();
-    ctx.stroke();
-    ctx.lineWidth = L(0.003);
-    ctx.beginPath();
-    for (const dx of [-0.023, 0, 0.023]) {
-      ctx.moveTo(mx + L(dx), my - L(0.014));
-      ctx.lineTo(mx + L(dx), my + L(0.016));
-    }
-    ctx.stroke();
-  }
-
-  // 瀏海：從上往下畫到髮際線，兩側往下接到鬢角；上面接獨立的頭髮零件
-  const base = BANGS[look.bangs] || BANGS.mshape;
-  const temple = (x) => 0.075 * Math.min(1, Math.max(0, (Math.abs(x) - 0.175) / 0.05)) ** 2;
-  const edge = (x) => base(x) - temple(x);
-  ctx.fillStyle = hairCss;
-  ctx.beginPath();
-  ctx.moveTo(X(-0.24), 0);
-  ctx.lineTo(X(0.24), 0);
-  for (let x = 0.24; x >= -0.2401; x -= 0.004) ctx.lineTo(X(x), Y(edge(x)));
-  ctx.closePath();
-  ctx.fill();
-}
-
 // 臉部特徵：畫在一張透明的圖上，再從正面貼到臉上。座標換算：模型的 (x, y) → 畫布
-function faceTexture(look, hair, brow) {
-  const kind = look.face || 'none';
-  const key = [kind, hair, brow, look.eyes, look.iris, look.brows, look.mouth, look.bangs].join('|');
-  return canvasTex(`face|${key}`, 512, (ctx, S) => {
-    drawFace(ctx, S, look, hair, brow);
+function faceTexture(kind, hair) {
+  if (!kind || kind === 'none') return blankTex();
+  return canvasTex(`face|${kind}|${hair}`, 512, (ctx, S) => {
     const X = (x) => ((x - FACE_RECT.x) / FACE_RECT.z) * S;
     const Y = (y) => (1 - (y - FACE_RECT.y) / FACE_RECT.w) * S;
     const L = (v) => (v / FACE_RECT.z) * S;
@@ -371,7 +129,7 @@ function faceTexture(look, hair, brow) {
       soft(0, F.mouthY - 0.005, 0.15, 0.062, 'rgba(70,74,82,A)', 0.3);
     } else if (kind === 'goatee') {
       ctx.fillStyle = dark.replace('A', 0.9);
-      ell(0, F.mouthY - 0.045, 0.02, 0.013);
+      ell(0, F.mouthY - 0.05, 0.036, 0.024);
     } else if (kind === 'mustache') {
       ctx.fillStyle = dark.replace('A', 0.9);
       for (const sx of [-1, 1]) ell(sx * 0.03, F.mouthY + 0.03, 0.036, 0.011, sx * 0.22);
@@ -386,7 +144,7 @@ function faceTexture(look, hair, brow) {
   });
 }
 // 臉上的定位點（模型靜止姿勢的座標）
-const F = { eyeX: 0.112, eyeY: 1.25, browY: 1.326, mouthY: 1.158 };
+const F = { eyeX: 0.123, eyeY: 1.234, browY: 1.335, mouthY: 1.126 };
 
 function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, look }, creamTop, decal) {
   const m = base.clone();
@@ -399,8 +157,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
     uDecal: { value: decal ? 1 : 0 }, // 身體才有背號、髮色、臉部特徵；帽子沒有
     uHair: { value: new THREE.Color(hair || '#1d1a18').convertLinearToSRGB() },
     uBackTex: { value: decal ? backTexture(no, name) : blankTex() },
-    uFaceTex: { value: blankTex() }, // 臉現在畫在獨立的圓頭上（見 addHead），身體這邊不用
-    uNeckCut: { value: decal ? NECK_CUT : 99 }, // 高於這個高度的部分（原本連著頭髮的頭）整個不畫
+    uFaceTex: { value: decal ? faceTexture(look && look.face, hair) : blankTex() },
     uBackRect: { value: BACK_RECT },
     uFaceRect: { value: FACE_RECT },
     uFlip: { value: 1 }, // 左打／左投的模型左右鏡射時設為 -1，背上的字才不會跟著反過來
@@ -422,13 +179,12 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         `#include <common>
         uniform vec3 uAccent; uniform vec3 uJersey; uniform vec3 uPants; uniform vec3 uSkin; uniform vec3 uHair;
         uniform float uCreamTop; uniform float uDecal; uniform float uFlip;
-        uniform float uNeckCut; uniform sampler2D uBackTex; uniform sampler2D uFaceTex; uniform vec4 uBackRect; uniform vec4 uFaceRect;
+        uniform sampler2D uBackTex; uniform sampler2D uFaceTex; uniform vec4 uBackRect; uniform vec4 uFaceRect;
         varying vec3 vRest; varying float vRestNz;`,
       )
       .replace(
         '#include <map_fragment>',
         `#include <map_fragment>
-        if (vRest.y > uNeckCut) discard;
         {
           vec3 s = pow(max(diffuseColor.rgb, 0.0), vec3(1.0 / 2.2));
           float mx = max(s.r, max(s.g, s.b));
@@ -438,7 +194,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float green = smoothstep(0.02, 0.07, s.g - max(s.r, s.b));
           float cream = smoothstep(0.5, 0.64, lum) * smoothstep(0.7, 0.78, ratio) * (1.0 - smoothstep(0.93, 0.97, ratio)) * step(s.b, s.r) * step(vRest.y, uCreamTop);
           // 軀幹和腿上沒有露出皮膚：球衣皺褶的暖色陰影要當成布料，否則深色球衣會出現一塊塊膚色
-          float clothZone = uDecal * step(abs(vRest.x), 0.27); // 脖子以上已經不畫，這個範圍內剩下的都是衣服
+          float clothZone = uDecal * step(vRest.y, 1.0) * step(abs(vRest.x), 0.27);
           cream = max(cream, clothZone * (1.0 - green) * smoothstep(0.3, 0.42, lum) * step(s.b, s.r));
           float skin = (1.0 - cream) * smoothstep(0.12, 0.2, s.r - s.b) * step(s.g, s.r) * step(s.b, s.g) * smoothstep(0.4, 0.55, lum);
           vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(0.66, 0.7, vRest.y));
@@ -468,7 +224,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         }`,
       );
   };
-  m.customProgramCacheKey = () => 'player-tint-9';
+  m.customProgramCacheKey = () => 'player-tint-10';
   return m;
 }
 
@@ -502,7 +258,6 @@ export function makePlayer(opts) {
   });
   const group = new THREE.Group();
   group.add(inner);
-  addHead(inner, opts);
   addGear(inner, opts);
   // 體型與頭型：整個人的高矮胖瘦用最外層縮放，頭的長寬用頭骨縮放（頭盔、面罩掛在頭骨上會一起變）
   const look = opts.look || {};
@@ -511,8 +266,7 @@ export function makePlayer(opts) {
   const headBone = inner.getObjectByName('head');
   if (headBone) {
     const k = look.head || 1;
-    headBone.scale.set(k / build.w, k / build.h, k / build.w); // 頭型都一樣，只有大小略有不同
-    headBone.position.y -= HEAD_DROP; // 裝備都掛好之後才往下壓，帽子和頭盔會跟著一起下來
+    headBone.scale.set((k * (look.hx || 1)) / build.w, (k * (look.hy || 1)) / build.h, k / build.w);
   }
   group.userData.build = build;
   group.userData.tintU = tints.has('body') ? tints.get('body').userData.u : null;
@@ -546,84 +300,6 @@ function part(g, material, pos, scale, rot) {
 const sphere = () => geo('sphere', () => new THREE.SphereGeometry(1, 20, 14));
 const box = () => geo('box', () => new THREE.BoxGeometry(1, 1, 1));
 const shellGeo = () => geo('shell', () => new THREE.SphereGeometry(0.345, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.6));
-
-// ── 圓頭、耳朵、鼻子、頭髮零件 ──
-function hairColorOf(opts) {
-  const look = opts.look || {};
-  const c = new THREE.Color(opts.hair || '#1d1a18');
-  if (look.bangs === 'buzz') c.lerp(new THREE.Color(opts.skin || '#f2c29e'), 0.38); // 平頭：髮色透一點頭皮的顏色
-  return c;
-}
-function addHead(inner, opts) {
-  inner.updateMatrixWorld(true);
-  const headBone = inner.getObjectByName('head');
-  if (!headBone) return;
-  const look = opts.look || {};
-  const skin = new THREE.Color(opts.skin || '#f2c29e');
-  const hairC = hairColorOf(opts);
-  const hairCss = `#${hairC.getHexString()}`;
-  const { c, r } = HEAD;
-
-  // 圓頭：膚色，五官與瀏海從正面貼上
-  const faceTex = faceTexture({ eyes: 'round', brows: 'flat', mouth: 'firm', bangs: 'mshape', ...look }, hairCss, opts.hair || '#1d1a18');
-  const skinMat = new THREE.MeshStandardMaterial({ color: skin, roughness: 0.72 });
-  const headMat = skinMat.clone();
-  headMat.onBeforeCompile = (shader) => {
-    shader.uniforms.uFaceTex = { value: faceTex };
-    shader.uniforms.uFaceRect = { value: FACE_RECT };
-    shader.uniforms.uHeadC = { value: c };
-    shader.uniforms.uHeadR = { value: r };
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vHead;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvHead = position;');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uFaceTex; uniform vec4 uFaceRect; uniform vec3 uHeadC; uniform vec3 uHeadR; varying vec3 vHead;')
-      .replace(
-        '#include <map_fragment>',
-        `#include <map_fragment>
-        {
-          vec2 fu = (vHead.xy * uHeadR.xy + uHeadC.xy - uFaceRect.xy) / uFaceRect.zw;
-          float inside = smoothstep(0.02, 0.16, vHead.z) * step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
-          vec4 fc = texture2D(uFaceTex, fu);
-          diffuseColor.rgb = mix(diffuseColor.rgb, pow(fc.rgb, vec3(2.2)), fc.a * inside);
-        }`,
-      );
-  };
-  headMat.customProgramCacheKey = () => 'round-head-2';
-  const ball = geo('headBall', () => shapeHead(new THREE.SphereGeometry(1, 56, 40)));
-  const g = new THREE.Group();
-  const skull = part(ball, headMat, [c.x, c.y, c.z], [r.x, r.y, r.z]);
-  g.add(skull);
-  for (const sx of [-1, 1]) g.add(part(sphere(), skinMat, [sx * (r.x * 1.1 - 0.004), c.y - 0.05, c.z - 0.02], [0.034, 0.058, 0.044])); // 耳朵
-  g.add(part(sphere(), skinMat, [0, 1.203, c.z + r.z * 0.79], [0.026, 0.022, 0.026])); // 鼻子
-  // 脖子：一段圓柱，下端藏在領口裡、上端接進頭的底部
-  g.add(part(geo('neck', () => new THREE.CylinderGeometry(0.105, 0.112, 0.1, 24)), skinMat, [0, 1.085, c.z - 0.004]));
-
-  // 頭髮：一片蓋住頭頂與後腦的髮片（前高後低），加上後面的造型。和頭是分開的零件
-  const hairMat = new THREE.MeshStandardMaterial({ color: hairC, roughness: 0.82, side: THREE.DoubleSide }); // 髮片是薄殼，兩面都要畫，側看才不會變成一條線
-  const buzz = look.bangs === 'buzz';
-  const k = buzz ? 1.012 : 1.045;
-  // 髮片：半球先往後傾（前額的髮際線高、後腦蓋得低），再套用和頭一樣的變形
-  const capOf = (tilt) => geo(`hairCap${tilt}`, () => shapeHead(new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI * 0.5).rotateX(tilt)));
-  const scalp = new THREE.Group();
-  scalp.position.copy(c);
-  scalp.scale.set(r.x * k, r.y * k, r.z * k);
-  scalp.add(part(capOf(-0.5), hairMat));
-  g.add(scalp);
-  if (!buzz) {
-    // 後腦到頸後：再一片更往後傾的髮片，貼著頭的弧度往下蓋
-    scalp.add(part(capOf(-1.0), hairMat));
-    if (look.back === 'long') scalp.add(part(capOf(-1.4), hairMat, null, [1.03, 1.03, 1.03])); // 長髮：髮片再往下蓋到頸後，服貼頭型
-    if (look.back === 'tail') {
-      g.add(part(sphere(), hairMat, [0, c.y - 0.03, c.z - r.z * 1.03 - 0.03], [0.06, 0.06, 0.06])); // 馬尾
-      g.add(part(sphere(), hairMat, [0, c.y - 0.15, c.z - r.z - 0.06], [0.05, 0.11, 0.05]));
-    }
-    if (look.back === 'burns') for (const sx of [-1, 1]) g.add(part(sphere(), hairMat, [sx * (r.x * 1.1 - 0.012), c.y - 0.06, c.z + 0.07], [0.02, 0.085, 0.045])); // 長鬢角
-  }
-  inner.add(g);
-  g.updateMatrixWorld(true);
-  headBone.attach(g);
-}
 
 function addGear(inner, opts) {
   inner.updateMatrixWorld(true);
@@ -661,29 +337,15 @@ function addGear(inner, opts) {
     const shellMat = ump
       ? gmat('umpShell', '#16181c', 0.55)
       : new THREE.MeshStandardMaterial({ color: accent, roughness: 0.32, metalness: 0.05 });
-    // 盔體：用和頭一樣的形狀放大一圈，服貼地罩住頭；前緣在眉毛上方、後緣蓋到後腦
-    const { c, r } = HEAD;
-    const K = 1.12;
-    const dome = geo('helmetDome', () => shapeHead(new THREE.SphereGeometry(1, 48, 28, 0, Math.PI * 2, 0, Math.PI * 0.53).rotateX(-0.2)));
     const helmet = new THREE.Group();
-    const shell = part(dome, shellMat, [c.x, c.y, c.z], [r.x * K, r.y * K, r.z * K]);
-    shell.material.side = THREE.DoubleSide; // 從下面看進去也有內側，不會透空
-    helmet.add(shell);
+    helmet.add(part(shellGeo(), shellMat));
     if (opts.helmet && !catcher && !ump) {
-      // 帽簷：一片有厚度、微微下彎的半圓，接在盔體前緣
-      const brimGeo = geo('brim2', () => {
-        const sh = new THREE.Shape();
-        sh.absarc(0, 0, 1, 0, Math.PI, false);
-        sh.lineTo(-1, 0);
-        const g = new THREE.ExtrudeGeometry(sh, { depth: 0.09, bevelEnabled: true, bevelSize: 0.03, bevelThickness: 0.03, bevelSegments: 3, curveSegments: 28 });
-        g.rotateX(Math.PI / 2); // 平放：半圓朝前（+Z）
-        return g;
-      });
-      helmet.add(part(brimGeo, shellMat, [0, c.y + 0.062, c.z + r.z * 0.6], [r.x * 0.86, 0.2, 0.2], [0.22, 0, 0]));
-      // 護耳在面向投手的那一側（右打者的左耳）；左打者整個模型鏡射，護耳也跟著換邊。和盔體連成一片往下蓋住耳朵
-      helmet.add(part(sphere(), shellMat, [r.x * 1.12, c.y - 0.07, c.z - 0.03], [0.036, 0.15, 0.14]));
-      helmet.add(part(sphere(), gmat('earHole', '#15171a', 0.9), [r.x * 1.12 + 0.024, c.y - 0.085, c.z - 0.03], [0.016, 0.03, 0.03])); // 耳孔
+      const brimGeo = geo('brim', () => new THREE.CylinderGeometry(0.27, 0.27, 0.03, 28, 1, false, -Math.PI / 2, Math.PI));
+      helmet.add(part(brimGeo, shellMat, [0, -0.045, 0.2], null, [0.16, 0, 0]));
+      // 護耳在面向投手的那一側。右打者的左耳朝投手；左打者整個模型鏡射，護耳也跟著換邊
+      helmet.add(part(sphere(), shellMat, [0.3, -0.13, 0.0], [0.063, 0.15, 0.142]));
     }
+    helmet.position.set(0, 1.44, -0.06); // 頭的中心略高處
     hang('head', helmet);
   }
 
@@ -694,7 +356,7 @@ function addGear(inner, opts) {
     const ring = geo('maskRing', () => new THREE.TorusGeometry(0.2, 0.017, 8, 36));
     const arc = geo('maskArc', () => new THREE.TorusGeometry(0.2, 0.012, 6, 20, Math.PI));
     const CY = 1.25;
-    const CZ = 0.236;
+    const CZ = 0.265;
     const mask = [part(ring, steel, [0, CY, CZ], [1.02, 1.12, 1])];
     for (const dy of [-0.1, -0.03, 0.04, 0.11]) {
       const w = Math.sqrt(1 - (dy / 0.224) ** 2) * 1.02; // 橫條兩端剛好接在橢圓外框上
@@ -754,11 +416,11 @@ function addGear(inner, opts) {
     const rim = geo('rim', () => new THREE.TorusGeometry(0.082, 0.008, 6, 24));
     const g = [];
     for (const sx of [-1, 1]) {
-      g.push(part(rim, frame, [sx * 0.112, 1.25, 0.226], [1, 0.9, 1], [0, sx * 0.3, 0]));
-      if (sun) g.push(part(geo('lens', () => new THREE.CircleGeometry(0.082, 20)), gmat('lens', '#1d2a33', 0.15, 0.6), [sx * 0.112, 1.25, 0.226], [1, 0.9, 1], [0, sx * 0.3, 0]));
-      g.push(part(box(), frame, [sx * 0.247, 1.262, 0.095], [0.008, 0.012, 0.25], [0, sx * -0.36, 0])); // 鏡腳
+      g.push(part(rim, frame, [sx * 0.118, 1.236, 0.268], [1, 0.9, 1], [0, sx * 0.3, 0]));
+      if (sun) g.push(part(geo('lens', () => new THREE.CircleGeometry(0.082, 20)), gmat('lens', '#1d2a33', 0.15, 0.6), [sx * 0.118, 1.236, 0.268], [1, 0.9, 1], [0, sx * 0.3, 0]));
+      g.push(part(box(), frame, [sx * 0.245, 1.25, 0.14], [0.008, 0.012, 0.26], [0, sx * -0.3, 0])); // 鏡腳
     }
-    g.push(part(box(), frame, [0, 1.262, 0.246], [0.07, 0.01, 0.008])); // 鼻樑
+    g.push(part(box(), frame, [0, 1.25, 0.29], [0.075, 0.01, 0.008])); // 鼻樑
     hang('head', ...g);
   }
 
