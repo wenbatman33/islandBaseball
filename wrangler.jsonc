@@ -1,0 +1,7 @@
+// Cloudflare 部署設定：把建置好的 dist 資料夾當成靜態網站發佈。
+// 部署：npm run deploy
+{
+  "name": "island-baseball",
+  "compatibility_date": "2026-10-23",
+  "assets": { "directory": "./dist" }
+}
