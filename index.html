@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>島嶼職棒</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div class="hud" id="hud">
+      <div class="scrim-top"></div>
+      <div class="scrim-bottom"></div>
+      <div class="brand"><i></i>ISLAND <span>LEAGUE</span></div>
+      <div class="tag" id="game-tag"></div>
+      <div id="intro"></div>
+      <div id="tags"></div>
+      <div id="live"></div>
+      <div id="dip"></div>
+      <div id="flash"><span>PLAY BALL</span></div>
+      <button id="dev-toggle" type="button"><kbd>D</kbd>DEV</button>
+    </div>
+    <div id="dev-export">
+      <p>已複製到剪貼簿。把這段貼給 Claude 並說「鎖定」，數值就會寫回原始碼。</p>
+      <textarea readonly></textarea>
+      <button type="button">關閉</button>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

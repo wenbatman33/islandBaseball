@@ -1,0 +1,22 @@
+node_modules/
+dist/
+.DS_Store
+.claude/
+.wrangler/
+
+# Blender 的中間產物（可由 tools/blender 的腳本重新產生）
+tools/blender/out*/
+tools/blender/poses_*/
+tools/blender/review_*/
+tools/blender/from_sheet/
+tools/blender/tex/
+*.blend
+*.blend1
+
+# 烘焙用的中間貼圖（GLB 模型裡已經內嵌）
+public/models/player/*_tex.png
+
+# 候選素材的預覽圖：含第三方商品截圖，不放進倉庫也不部署。只保留我們自己的角色設定圖
+public/models/_候選預覽/*
+!public/models/_候選預覽/concept-player-sheet.png
+!public/models/_候選預覽/concept-player-sheet-脫帽.png
