@@ -119,7 +119,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   const meterRing = mk(new THREE.RingGeometry(0.057, 0.066, 48), flat('#ffffff', 0.95));
   const pci = mk(new THREE.RingGeometry(0.93, 1, 56), flat('#d8ff3e', 0.95));
   const pciCore = mk(new THREE.RingGeometry(0.024, 0.034, 24), flat('#ffffff', 0.9));
-  const ballMark = mk(new THREE.RingGeometry(0.042, 0.054, 32), flat('#ff7a4d', 0.95));
+  const ballMark = mk(new THREE.RingGeometry(0.036, 0.058, 40), flat('#ff7a4d', 0.98)); // 落點圈（加粗，會縮小）
 
   // ── 狀態 ──
   const S = {
@@ -250,10 +250,12 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       setPhase('select');
       ui.pitchMenu(sp.pitches, selPitch);
       ui.hint('1–4 選球種　滑鼠瞄準　點擊投球，圈縮到剛好時再點一下');
+      ui.batHelp(false);
     } else {
       plan = aiPlan(sp);
       ui.pitchMenu(null);
-      ui.hint(userBatting() ? '移動游標對準來球　點擊或空白鍵揮棒' : '');
+      ui.hint('');
+      ui.batHelp(userBatting());
       setPhase('set');
       schedule(0.6 + Math.random() * 0.7, startWindup);
     }
@@ -350,10 +352,21 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     return { type: 'contact', ev: ((88 + 80 * q) * power(batterInfo)) / 3.6, la: clamp(11 + gauss() * 19, -28, 62), spray, q };
   }
 
+  // 揮棒後告訴玩家偏在哪裡：時機（太早／太晚）與位置（偏高／偏低／偏左／偏右）
+  function swingFeedback(dt, dx, dy) {
+    const tm = Math.abs(dt) <= TUNE.timing * 0.35 ? '時機剛好' : dt < 0 ? '揮得太早' : '揮得太晚';
+    const far = Math.hypot(dx, dy);
+    let where = '位置對準';
+    if (far > TUNE.pci * 0.45) where = Math.abs(dy) >= Math.abs(dx) ? (dy > 0 ? '瞄得太高' : '瞄得太低') : dx > 0 ? '瞄得偏右' : '瞄得偏左';
+    const good = tm === '時機剛好' && where === '位置對準';
+    ui.feedback(good ? '完美擊球！' : `${tm}　${where}`, good ? 'good' : 'bad');
+  }
+
   function userSwingResult() {
     if (!swing) return { type: 'take' };
     const T = pitch.T;
     const dt = swing.at + 0.12 - gt;
+    swingFeedback(dt, swing.x - T.x, swing.y - T.y);
     if (Math.abs(dt) > TUNE.timing * 1.25) return { type: 'whiff' };
     const d = Math.hypot(swing.x - T.x, swing.y - T.y);
     const lim = TUNE.pci * 1.55;
@@ -902,7 +915,12 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     fielders[fld()].C.group.visible = !plate;
     ump.group.visible = !plate;
     widgets.visible = plate && ['select', 'meter', 'set', 'windup', 'flight', 'call'].includes(phase);
-    if (!widgets.visible) return;
+    if (!widgets.visible) {
+      // 球打出去、攻守交替、比賽結束時，把打擊說明和「揮！」收起來
+      ui.batHelp(false);
+      ui.swingNow(false);
+      return;
+    }
     const pitching = phase === 'select' || phase === 'meter';
     aimMark.visible = aimDot.visible = pitching;
     meterRing.visible = phase === 'meter';
@@ -920,7 +938,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       pci.position.set(x, y, 0);
       pci.scale.setScalar(TUNE.pci);
       pciCore.position.set(x, y, 0);
+      // 瞄準圈蓋到這球的進壘點時變綠色
+      const onTarget = !!(pitch && phase === 'flight' && Math.hypot(x - pitch.T.x, y - pitch.T.y) <= TUNE.pci * 0.9);
+      pci.material.color.set(onTarget ? '#58f08a' : '#d8ff3e');
     }
+    // 該揮棒的那一小段時間：落點圈變綠色，並跳出「揮！」
+    const swingWindow = !!(batting && pitch && phase === 'flight' && !swing && Math.abs(pitch.Tf - pitch.t - 0.12) <= TUNE.timing);
+    ballMark.material.color.set(swingWindow ? '#58f08a' : '#ff7a4d');
+    ui.swingNow(swingWindow);
+    if (!userBatting() || phase === 'play' || phase === 'switch' || phase === 'over') ui.batHelp(false);
     ballMark.visible = !!(pitch && phase === 'flight' && pitch.t < pitch.Tf && (TUNE.assist || !userBatting()));
     if (ballMark.visible) {
       const s = pitch.t / pitch.Tf;

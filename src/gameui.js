@@ -6,6 +6,9 @@ export function buildGameUI(root) {
     'beforeend',
     `<div class="pitch-menu" data-lay="pitchMenu"></div>
      <div class="hint" data-lay="hint"></div>
+     <div class="bat-help"></div>
+     <div class="swing-fb"></div>
+     <div class="swing-now">揮！</div>
      <div class="pitch-info" data-lay="pitchInfo"></div>
      <div class="call" id="call"></div>
      <div class="banner" data-lay="banner"><small></small><b></b><span></span></div>
@@ -13,6 +16,9 @@ export function buildGameUI(root) {
   );
   const elMenu = root.querySelector('.pitch-menu');
   const elHint = root.querySelector('.hint');
+  const elHelp = root.querySelector('.bat-help');
+  const elFb = root.querySelector('.swing-fb');
+  const elNow = root.querySelector('.swing-now');
   const elInfo = root.querySelector('.pitch-info');
   const elCall = root.querySelector('.call');
   const elBanner = root.querySelector('.banner');
@@ -55,6 +61,26 @@ export function buildGameUI(root) {
     hint(text) {
       elHint.textContent = text;
       elHint.classList.toggle('show', !!text);
+    },
+    // 打擊的操作說明（兩個步驟），打擊時固定顯示
+    batHelp(show) {
+      if (show && !elHelp.innerHTML) {
+        elHelp.innerHTML = `
+          <div class="bh-title">你的打擊</div>
+          <div class="bh-step"><i>1</i><span><b>移動滑鼠</b>　把<em class="y">黃圈</em>對準<em class="o">橘色落點</em>，對到會變<em class="g">綠色</em></span></div>
+          <div class="bh-step"><i>2</i><span><b>點擊</b> 或 <kbd>空白鍵</kbd>　橘圈縮到最小、變<em class="g">綠色</em>時揮棒</span></div>`;
+      }
+      elHelp.classList.toggle('show', !!show);
+    },
+    // 「現在揮！」的提示
+    swingNow(on) {
+      elNow.classList.toggle('show', !!on);
+    },
+    // 揮棒後的回饋：時機與位置
+    feedback(text, tone) {
+      elFb.textContent = text;
+      elFb.dataset.tone = tone || '';
+      retrigger(elFb, 'show');
     },
     pitchInfo(text) {
       elInfo.textContent = text;

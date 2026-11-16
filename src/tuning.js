@@ -47,8 +47,8 @@ export const SHOTS = {
 export const TUNE = {
   innings: 3, // 局數
   speedScale: 0.5, // 球速倍率（越小球越慢、越好打）
-  pci: 0.17, // 打擊游標半徑（公尺）
-  timing: 0.11, // 揮棒時機寬容度（秒）
+  pci: 0.2, // 打擊游標半徑（公尺）
+  timing: 0.13, // 揮棒時機寬容度（秒）
   assist: true, // 顯示進壘點預測圈
   auto: false, // AI 代為操作（測試用）
   timeScale: 1, // 時間倍率（測試用）
