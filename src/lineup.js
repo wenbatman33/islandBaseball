@@ -40,6 +40,7 @@ function build() {
   const team = GAME[teamKey];
   const list = [...team.lineup.map((p) => ({ p, gear: p.pos === 'C' ? 'catcher' : null, helmet: p.pos === 'DH' ? 1 : 0 })), { p: team.sp }];
   list.push({ p: { name: '', pos: '主審', look: {} }, ump: true });
+  const Q = new URLSearchParams(location.search);
   list.forEach((it, i) => {
     const a = it.ump
       ? makeActor({ jersey: '#2a2f36', accent: '#15181c', pants: '#4a4f57', skin: '#c98f66', gear: 'ump' })
@@ -48,6 +49,7 @@ function build() {
     if (it.p.hand === '左投') a.hand = -1;
     a.group.position.x = (i - (list.length - 1) / 2) * 1.05;
     a.info = it.p;
+    if (Q.has('bare')) a.group.traverse((o) => { if (o.name === 'cap') o.visible = false; });
     stage.add(a.group);
     actors.push(a);
   });

@@ -49,7 +49,7 @@ export function buildGameUI(root) {
       elMenu.classList.toggle('show', !!list);
       if (!list) return;
       elMenu.innerHTML =
-        '<div class="pm-head">球種</div>' +
+        '<div class="pm-head">球種<span>按 1–4 選擇　字母＝拿手程度（A 最強）</span></div>' +
         list
           .map(([name, g], i) => {
             const d = PITCHES[name];

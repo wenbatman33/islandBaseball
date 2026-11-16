@@ -25,7 +25,7 @@ import { buildIntroDOM, createDirector, SEGS } from './intro.js';
 import { buildHud } from './hud.js';
 import { buildGameUI } from './gameui.js';
 import { createGame } from './game.js';
-import { initAudio, sayParts, voiceStatus } from './audio.js';
+import { initAudio, sayParts, voiceStatus, setMuted, isMuted, onMute } from './audio.js';
 import { introLines } from './commentary.js';
 import { initDevTools } from './devtools.js';
 
@@ -169,6 +169,17 @@ async function start() {
   const H = GAME.home;
   const INTRO_LINES = introLines(GAME);
   window.__voice = voiceStatus; // 檢查用
+  // 右上角的靜音按鍵（和 M 鍵同一個開關）
+  const muteBtn = document.getElementById('mute-toggle');
+  onMute((off) => {
+    muteBtn.classList.toggle('off', off);
+    muteBtn.querySelector('span').textContent = off ? '已靜音' : '聲音開';
+  });
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setMuted(!isMuted());
+    muteBtn.blur(); // 不然之後按空白鍵會變成又按一次這顆按鈕
+  });
   let lastIntroKey = null;
   let soundOn = false; // 使用者點過一次之後才能出聲
   director.onChange((st) => {

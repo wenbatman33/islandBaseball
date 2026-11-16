@@ -177,15 +177,18 @@ function makeScoreboard() {
 }
 
 function lampTexture() {
+  // 燈面整片發亮、燈泡只比底色再亮一點：遠看時不會因為小亮點忽有忽無而閃爍
   return canvasTexture(256, 128, (ctx, w, h) => {
-    ctx.fillStyle = '#1a1d22';
+    ctx.fillStyle = '#b7b0a2';
     ctx.fillRect(0, 0, w, h);
     for (let i = 0; i < 8; i++)
       for (let j = 0; j < 4; j++) {
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.arc(16 + i * 32, 16 + j * 32, 11, 0, Math.PI * 2);
-        ctx.fill();
+        const g = ctx.createRadialGradient(16 + i * 32, 16 + j * 32, 2, 16 + i * 32, 16 + j * 32, 16);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.6, '#f1ece0');
+        g.addColorStop(1, 'rgba(183,176,162,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(i * 32, j * 32, 32, 32);
       }
   });
 }
@@ -466,7 +469,7 @@ export function buildStadium() {
   {
     const lampTex = lampTexture();
     const lampMat = new THREE.MeshBasicMaterial({ map: lampTex });
-    lampMat.color.setRGB(3.2, 2.9, 2.4);
+    lampMat.color.setRGB(2.0, 1.85, 1.6);
     const steel = new THREE.MeshStandardMaterial({ color: PAL.steel, roughness: 0.6 });
     const spots = [
       [-27, fenceR(27) + 17, 40],

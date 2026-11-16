@@ -3,9 +3,15 @@ const SKINS = ['#f1c7a3', '#e5b18a', '#c98f66', '#f6d6bb', '#a8744f', '#eabf98']
 const HAIRS = ['#1d1a18', '#2b211b', '#4a3324', '#15171a', '#7a5230', '#3a2a22'];
 
 // 每位球員的外觀：用姓名算出固定的亂數，所以同一個人每次都長一樣。
-// h 身高、w 體格寬度（長打型比較壯）、head 頭的大小、hx/hy 臉的寬與長、face 臉部特徵、glasses 眼鏡、band 護腕
-const FACES = ['none', 'eyeblack', 'stubble', 'brows', 'none', 'goatee', 'freckle', 'mustache', 'none'];
-function lookOf(name, pos, hr = 0, slot = 0) {
+// h 身高、w 體格寬度（長打型比較壯）、head 頭的大小、eyes/brows/mouth 五官、bangs/back 髮型、face 臉部特徵、glasses 眼鏡、band 護腕
+const FACES = ['none', 'eyeblack', 'stubble', 'none', 'none', 'goatee', 'freckle', 'mustache', 'none'];
+const EYE_KINDS = ['round', 'sharp', 'keen', 'oval', 'bold', 'small', 'fierce', 'calm'];
+const BROW_KINDS = ['flat', 'angry', 'arch', 'bold', 'thin', 'short'];
+const MOUTH_KINDS = ['firm', 'smirk', 'grin', 'flat', 'smile', 'grit', 'cat'];
+const BANG_KINDS = ['mshape', 'short', 'straight', 'side', 'part', 'spiky', 'buzz'];
+const BACK_KINDS = [null, null, 'long', null, 'burns', null, 'tail', null];
+const IRIS = ['#3a2518', '#22160f', '#5a3a1e', '#2c2f38', '#4a3324'];
+function lookOf(name, pos, hr = 0, i = 0, seed = 0) {
   let h = 2166136261;
   for (const ch of name) h = Math.imul(h ^ ch.codePointAt(0), 16777619) >>> 0;
   const rnd = () => ((h = (Math.imul(h, 1664525) + 1013904223) >>> 0) / 4294967296);
@@ -14,12 +20,17 @@ function lookOf(name, pos, hr = 0, slot = 0) {
     h: 0.95 + rnd() * 0.11,
     w: 0.95 + rnd() * 0.06 + power * 0.09,
     head: 0.96 + rnd() * 0.07,
-    hx: 0.96 + rnd() * 0.08,
-    hy: 0.96 + rnd() * 0.08,
-    face: FACES[slot % FACES.length], // 同隊九個人輪流分到不同的臉部特徵，不會撞在一起
+    face: FACES[(i * 2 + seed) % FACES.length], // 同隊九個人輪流分到不同的臉部特徵，不會撞在一起
     glasses: null,
     band: [null, 'accent', 'white', null][Math.floor(rnd() * 4)],
   };
+  // 五官與瀏海：同隊的人照順序輪流分到不同款式，眼、眉、嘴的輪替間隔不同，所以組合不會重複
+  look.eyes = EYE_KINDS[(i * 3 + seed) % EYE_KINDS.length];
+  look.brows = BROW_KINDS[(i + seed * 2) % BROW_KINDS.length];
+  look.mouth = MOUTH_KINDS[(i * 2 + seed) % MOUTH_KINDS.length];
+  look.bangs = BANG_KINDS[(i * 3 + seed * 2) % BANG_KINDS.length];
+  look.iris = IRIS[(i * 2 + seed) % IRIS.length];
+  look.back = BACK_KINDS[(i * 3 + seed) % BACK_KINDS.length];
   const g = rnd();
   if (pos !== 'C' && g < 0.2) look.glasses = g < 0.09 ? 'sun' : 'clear';
   return look;
@@ -31,7 +42,7 @@ function roster(list, seed) {
     skin: SKINS[(i * 5 + seed) % SKINS.length],
     hair: HAIRS[(i * 3 + seed) % HAIRS.length],
     hairStyle: (i + seed) % 3,
-    look: lookOf(name, pos, hr, i * 5 + seed * 2),
+    look: lookOf(name, pos, hr, i, seed),
   }));
 }
 
@@ -78,7 +89,7 @@ export const GAME = {
       1,
     ),
     sp: {
-      no: 18, name: '藍允翔', pos: 'SP', hand: '左投', ovr: 75, skin: SKINS[1], hair: HAIRS[0], hairStyle: 1, look: lookOf('藍允翔', 'P'),
+      no: 18, name: '藍允翔', pos: 'SP', hand: '左投', ovr: 75, skin: SKINS[1], hair: HAIRS[0], hairStyle: 1, look: lookOf('藍允翔', 'P', 0, 9, 2),
       wl: '2-2', era: '3.41', so: 27, whip: '1.24',
       stamina: 68, control: 71, stuff: 66, maxKmh: 146,
       pitches: [['四縫線', 'B'], ['滑球', 'B'], ['變速球', 'A'], ['曲球', 'C']],
@@ -112,7 +123,7 @@ export const GAME = {
       3,
     ),
     sp: {
-      no: 17, name: '駱以辰', pos: 'SP', hand: '右投', ovr: 80, skin: SKINS[3], hair: HAIRS[2], hairStyle: 0, look: lookOf('駱以辰', 'P'),
+      no: 17, name: '駱以辰', pos: 'SP', hand: '右投', ovr: 80, skin: SKINS[3], hair: HAIRS[2], hairStyle: 0, look: lookOf('駱以辰', 'P', 0, 10, 4),
       wl: '3-1', era: '2.84', so: 31, whip: '1.12',
       stamina: 72, control: 64, stuff: 78, maxKmh: 151,
       pitches: [['四縫線', 'A'], ['滑球', 'B'], ['指叉球', 'B'], ['曲球', 'C']],

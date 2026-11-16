@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FIELD_Y } from './util.js';
 import { TUNE, SHOTS } from './tuning.js';
 import { PITCHES, GRADE_MUL } from './data.js';
-import { makeActor, FIELD_POS } from './player3d.js'; // 舊的程式建模球員在 players.js，改回那個檔即可還原
+import { makeActor, FIELD_POS } from './player3d.js';
 import { flight, fieldPlay, resolveOutcome, BASES, SIM_DT } from './ballsim.js';
 import { sfx, sayParts, band } from './audio.js';
 import { line } from './commentary.js';

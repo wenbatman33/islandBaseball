@@ -5,7 +5,13 @@ let master = null;
 let noiseBuf = null;
 let crowdBus = null; // 觀眾聲（底噪、歡呼、應援）都走這裡，播報時整個壓低
 let voiceBus = null; // 轉播語音
+const MUTE_KEY = 'island.muted';
 let muted = false;
+try {
+  muted = localStorage.getItem(MUTE_KEY) === '1'; // 記住上次的靜音選擇
+} catch (e) {
+  /* 讀不到就當作沒靜音 */
+}
 
 function init() {
   if (ctx) return;
@@ -13,7 +19,7 @@ function init() {
   if (!AC) return;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = 0.5;
+  master.gain.value = muted ? 0 : 0.5;
   master.connect(ctx.destination);
   crowdBus = ctx.createGain();
   crowdBus.connect(master);
@@ -377,6 +383,35 @@ export function sayParts(parts, important = false, mood = '', tries = 0) {
   crowdBus.gain.setTargetAtTime(1, t + 0.1, 0.4);
 }
 
+// 靜音：關掉所有聲音（音效、觀眾、應援、轉播），並記住選擇
+const muteListeners = [];
+export const isMuted = () => muted;
+export function onMute(fn) {
+  muteListeners.push(fn);
+  fn(muted);
+}
+export function setMuted(on) {
+  muted = !!on;
+  if (master) master.gain.value = muted ? 0 : 0.5;
+  if (muted) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    voiceSources.forEach((src) => {
+      try {
+        src.stop();
+      } catch (e) {
+        /* 已經播完 */
+      }
+    });
+    voiceSources = [];
+  }
+  try {
+    localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
+  } catch (e) {
+    /* 存不了就算了 */
+  }
+  muteListeners.forEach((fn) => fn(muted));
+}
+
 export function initAudio() {
   // 頁面一打開就先建立音訊並載入、解碼預錄語音（瀏覽器要等使用者點擊才會真的出聲，
   // 但載入和解碼可以先做），這樣第一句播報就是預錄的
@@ -395,11 +430,7 @@ export function initAudio() {
   window.addEventListener('pointerdown', kick);
   window.addEventListener('keydown', (e) => {
     kick();
-    if (e.key === 'm' || e.key === 'M') {
-      muted = !muted;
-      if (master) master.gain.value = muted ? 0 : 0.5;
-      if (muted && window.speechSynthesis) window.speechSynthesis.cancel();
-    }
+    if (e.key === 'm' || e.key === 'M') setMuted(!muted);
     if (e.key === 'b' || e.key === 'B') {
       bandOn = !bandOn;
       band(!!band.want);

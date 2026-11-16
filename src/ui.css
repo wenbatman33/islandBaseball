@@ -214,6 +214,7 @@ body[data-mode='live'] #live { display: block; }
   border-radius: 0.5em; padding: 0.5em; backdrop-filter: blur(10px); pointer-events: auto; transform-origin: right bottom; }
 .pitch-menu.show { display: block; }
 .pm-head { font: 600 0.75em/1 var(--tc); color: var(--dim); letter-spacing: 0.2em; padding: 0.3em 0.4em 0.6em; }
+.pm-head span { display: block; margin-top: 0.55em; font-weight: 500; letter-spacing: 0.04em; white-space: nowrap; opacity: 0.85; }
 .pm-row { display: grid; grid-template-columns: 1.6em 1fr auto 1.5em; align-items: center; column-gap: 0.6em; padding: 0.45em 0.4em; border-radius: 0.3em; cursor: pointer; }
 .pm-row + .pm-row { margin-top: 0.15em; }
 .pm-row kbd { font: 700 0.85em/1 var(--display); text-align: center; padding: 0.25em 0; border-radius: 0.2em; background: rgba(255, 255, 255, 0.12); }
@@ -283,6 +284,13 @@ body[data-mode='live'] #live { display: block; }
   font: 600 0.85em/1 var(--display); letter-spacing: 0.14em; }
 #dev-toggle:hover { color: var(--ink); border-color: var(--accent); }
 #dev-toggle kbd { font: 700 0.9em/1 var(--display); padding: 0.2em 0.4em; border-radius: 0.2em; background: var(--accent); color: #10161b; }
+#mute-toggle { position: absolute; right: 1.75em; bottom: 1.2em; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 0.5em;
+  padding: 0.45em 0.7em; border-radius: 0.35em; background: var(--panel); color: var(--dim); border: 1px solid var(--line);
+  font: 600 0.85em/1 var(--tc); letter-spacing: 0.08em; }
+#mute-toggle:hover { color: var(--ink); border-color: var(--accent); }
+#mute-toggle kbd { font: 700 0.9em/1 var(--display); padding: 0.2em 0.4em; border-radius: 0.2em; background: var(--accent); color: #10161b; }
+#mute-toggle.off { color: #ff8a70; border-color: rgba(255, 138, 112, 0.5); }
+#mute-toggle.off kbd { background: #ff8a70; }
 body.dev-drag [data-lay] { pointer-events: auto; cursor: move; outline: 1px dashed var(--accent); outline-offset: 3px; user-select: none; }
 body.dev-drag [data-lay].sel { outline: 2px solid var(--accent); }
 body.dev-drag [data-lay] button { pointer-events: none; }
