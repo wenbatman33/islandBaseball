@@ -46,17 +46,19 @@ export const SHOTS = {
 // 玩法參數
 export const TUNE = {
   innings: 3, // 局數
+  extra: 3, // 平手時最多延長幾局（0＝不打延長賽）
   speedScale: 0.5, // 球速倍率（越小球越慢、越好打）
   pci: 0.2, // 打擊游標半徑（公尺）
-  timing: 0.13, // 揮棒時機寬容度（秒）
+  timing: 0.17, // 揮棒時機寬容度（秒）
   assist: true, // 顯示進壘點預測圈
+  aimAssist: 0.5, // 瞄準輔助（0＝完全自己瞄，1＝只看揮棒時機）
   auto: false, // AI 代為操作（測試用）
   timeScale: 1, // 時間倍率（測試用）
 };
 
 const KEY = 'starridge.tuning.v1';
 const DEFAULTS = JSON.parse(JSON.stringify({ LAYOUT, SHOTS, TUNE }));
-const TUNE_SAVED = ['innings', 'speedScale', 'pci', 'timing', 'assist'];
+const TUNE_SAVED = ['innings', 'extra', 'speedScale', 'pci', 'timing', 'assist', 'aimAssist'];
 const pickTune = () => Object.fromEntries(TUNE_SAVED.map((k) => [k, TUNE[k]]));
 
 function merge(target, src) {
@@ -76,6 +78,7 @@ export function loadTuning() {
       merge(LAYOUT, d.LAYOUT);
       merge(SHOTS, d.SHOTS);
       if (d.TUNE) for (const k of TUNE_SAVED) if (k in d.TUNE) TUNE[k] = d.TUNE[k];
+      if (d.TUNE && d.TUNE.timing === 0.13) TUNE.timing = DEFAULTS.TUNE.timing; // 舊的預設值太嚴，沒自己調過的人換成新預設
     }
   } catch (e) {
     /* 讀不到就用預設值 */

@@ -143,7 +143,8 @@ function makeScoreboard() {
     ctx.fillStyle = '#d8ff3e';
     const S = st ? st.S : null;
     ctx.fillText(S ? (S.over ? 'FINAL' : `${S.half ? 'BOT' : 'TOP'} ${S.inning}`) : 'TOP 1', w - 40, 52);
-    const cols = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'R', 'H', 'E'];
+    const first = S ? Math.max(0, S.inning - 9) : 0; // 延長到第 10 局以後，局數欄往後捲
+    const cols = [...Array.from({ length: 9 }, (_, i) => String(first + i + 1)), 'R', 'H', 'E'];
     const x0 = 300;
     const cw = (w - x0 - 40) / cols.length;
     ctx.font = '600 34px "Barlow Condensed", "Arial Narrow", sans-serif';
@@ -162,7 +163,7 @@ function makeScoreboard() {
       ctx.textAlign = 'center';
       ctx.font = '700 50px "Barlow Condensed", "Arial Narrow", sans-serif';
       const vals = [];
-      for (let i = 0; i < 9; i++) vals.push(S && S.lines[r][i] != null ? S.lines[r][i] : '');
+      for (let i = first; i < first + 9; i++) vals.push(S && S.lines[r][i] != null ? S.lines[r][i] : '');
       vals.push(S ? S.score[r] : 0, S ? S.hits[r] : 0, 0);
       vals.forEach((v, i) => {
         ctx.fillStyle = i >= 9 ? '#d8ff3e' : '#f3efe6';

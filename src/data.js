@@ -1,6 +1,29 @@
 // 球隊與球員資料（全部為虛構）
 const SKINS = ['#f1c7a3', '#e5b18a', '#c98f66', '#f6d6bb', '#a8744f', '#eabf98'];
-const HAIRS = ['#1d1a18', '#2b211b', '#4a3324', '#15171a', '#6b4a2e', '#3a2a22'];
+const HAIRS = ['#1d1a18', '#2b211b', '#4a3324', '#15171a', '#7a5230', '#3a2a22'];
+
+// 每位球員的外觀：用姓名算出固定的亂數，所以同一個人每次都長一樣。
+// h 身高、w 體格寬度（長打型比較壯）、head 頭的大小、hx/hy 臉的寬與長、face 臉部特徵、glasses 眼鏡、band 護腕
+const FACES = ['none', 'eyeblack', 'stubble', 'brows', 'none', 'goatee', 'freckle', 'mustache', 'none'];
+function lookOf(name, pos, hr = 0, slot = 0) {
+  let h = 2166136261;
+  for (const ch of name) h = Math.imul(h ^ ch.codePointAt(0), 16777619) >>> 0;
+  const rnd = () => ((h = (Math.imul(h, 1664525) + 1013904223) >>> 0) / 4294967296);
+  const power = Math.min(1, hr / 12);
+  const look = {
+    h: 0.95 + rnd() * 0.11,
+    w: 0.95 + rnd() * 0.06 + power * 0.09,
+    head: 0.96 + rnd() * 0.07,
+    hx: 0.96 + rnd() * 0.08,
+    hy: 0.96 + rnd() * 0.08,
+    face: FACES[slot % FACES.length], // 同隊九個人輪流分到不同的臉部特徵，不會撞在一起
+    glasses: null,
+    band: [null, 'accent', 'white', null][Math.floor(rnd() * 4)],
+  };
+  const g = rnd();
+  if (pos !== 'C' && g < 0.2) look.glasses = g < 0.09 ? 'sun' : 'clear';
+  return look;
+}
 
 function roster(list, seed) {
   return list.map(([no, name, pos, bats, ovr, avg, hr, rbi], i) => ({
@@ -8,6 +31,7 @@ function roster(list, seed) {
     skin: SKINS[(i * 5 + seed) % SKINS.length],
     hair: HAIRS[(i * 3 + seed) % HAIRS.length],
     hairStyle: (i + seed) % 3,
+    look: lookOf(name, pos, hr, i * 5 + seed * 2),
   }));
 }
 
@@ -54,7 +78,7 @@ export const GAME = {
       1,
     ),
     sp: {
-      no: 18, name: '藍允翔', pos: 'SP', hand: '左投', ovr: 75, skin: SKINS[1], hair: HAIRS[0], hairStyle: 1,
+      no: 18, name: '藍允翔', pos: 'SP', hand: '左投', ovr: 75, skin: SKINS[1], hair: HAIRS[0], hairStyle: 1, look: lookOf('藍允翔', 'P'),
       wl: '2-2', era: '3.41', so: 27, whip: '1.24',
       stamina: 68, control: 71, stuff: 66, maxKmh: 146,
       pitches: [['四縫線', 'B'], ['滑球', 'B'], ['變速球', 'A'], ['曲球', 'C']],
@@ -88,7 +112,7 @@ export const GAME = {
       3,
     ),
     sp: {
-      no: 17, name: '駱以辰', pos: 'SP', hand: '右投', ovr: 80, skin: SKINS[3], hair: HAIRS[2], hairStyle: 0,
+      no: 17, name: '駱以辰', pos: 'SP', hand: '右投', ovr: 80, skin: SKINS[3], hair: HAIRS[2], hairStyle: 0, look: lookOf('駱以辰', 'P'),
       wl: '3-1', era: '2.84', so: 31, whip: '1.12',
       stamina: 72, control: 64, stuff: 78, maxKmh: 151,
       pitches: [['四縫線', 'A'], ['滑球', 'B'], ['指叉球', 'B'], ['曲球', 'C']],

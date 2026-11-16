@@ -46,7 +46,9 @@ export function initDevTools({ applyLook, setView, views, camera, controls, dire
   fPlay.add(TUNE, 'pci', 0.08, 0.3, 0.005).name('打擊游標半徑').onChange(st);
   fPlay.add(TUNE, 'timing', 0.04, 0.25, 0.005).name('揮棒時機寬容（秒）').onChange(st);
   fPlay.add(TUNE, 'assist').name('顯示進壘點預測圈').onChange(st);
+  fPlay.add(TUNE, 'aimAssist', 0, 1, 0.05).name('瞄準輔助（1=只看時機）').onChange(st);
   fPlay.add(TUNE, 'innings', 1, 9, 1).name('局數').onChange(st);
+  fPlay.add(TUNE, 'extra', 0, 3, 1).name('延長賽最多幾局').onChange(st);
   fPlay.add(TUNE, 'auto').name('AI 代為操作');
   fPlay.add(TUNE, 'timeScale', 0.25, 8, 0.25).name('時間倍率');
   const playActions = {

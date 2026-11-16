@@ -39,7 +39,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       const info = pos === 'P' ? team.sp : team.lineup.find((p) => p.pos === pos);
       const hand = info.hand === '左投' ? -1 : 1;
       const a = makeActor({
-        ...team.kit, skin: info.skin, hair: info.hair, hairStyle: info.hairStyle, no: info.no, icon: team.icon,
+        ...team.kit, skin: info.skin, hair: info.hair, no: info.no, name: info.name, look: info.look,
         glove: -hand, gear: pos === 'C' ? 'catcher' : null,
       });
       a.hand = hand;
@@ -212,7 +212,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     batterInfo = p;
     const side = p.bats === '左' ? -1 : 1;
     batter = makeActor({
-      ...team.kit, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, no: p.no, bat: true, helmet: side,
+      ...team.kit, skin: p.skin, hair: p.hair, no: p.no, name: p.name, look: p.look, bat: true, helmet: side,
     });
     batter.side = side;
     batter.group.position.set(-batter.side * 1.0, 0, 0.05);
@@ -326,6 +326,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       arc: (1 - def.speed) * 1.1 + 0.05,
       t: 0, resolved: false, swung: false,
     };
+    pitch.arrive = gt + pitch.Tf; // 球到本壘的時間點
     setPhase('flight');
     ball.visible = true;
     if (!userBatting()) aiSwing = aiBat();
@@ -362,23 +363,27 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     ui.feedback(good ? '完美擊球！' : `${tm}　${where}`, good ? 'good' : 'bad');
   }
 
+  // 揮棒時機：球到本壘前 LEAD 秒按下最準；球到了才按也來得及（GRACE 秒內都算，只是偏晚）
+  const LEAD = 0.07;
+  const GRACE = 0.08;
   function userSwingResult() {
     if (!swing) return { type: 'take' };
     const T = pitch.T;
-    const dt = swing.at + 0.12 - gt;
+    const dt = swing.at + LEAD - pitch.arrive;
     swingFeedback(dt, swing.x - T.x, swing.y - T.y);
-    if (Math.abs(dt) > TUNE.timing * 1.25) return { type: 'whiff' };
-    const d = Math.hypot(swing.x - T.x, swing.y - T.y);
-    const lim = TUNE.pci * 1.55;
+    if (Math.abs(dt) > TUNE.timing * 1.35) return { type: 'whiff' };
+    // 瞄準輔助：球棒會自動往球的方向靠過去一部分（1＝完全自動對準，0＝完全靠自己瞄）
+    const d = Math.hypot(swing.x - T.x, swing.y - T.y) * (1 - TUNE.aimAssist);
+    const lim = TUNE.pci * 1.9; // 瞄準圈放在好球帶中央時，大部分好球都碰得到，只是越偏打得越不紮實
     if (d > lim) return { type: 'whiff' };
-    const q = clamp((1 - d / lim) * (1 - (0.55 * Math.abs(dt)) / TUNE.timing) * 1.15, 0, 1);
+    const q = clamp((1 - d / lim) * (1 - (0.5 * Math.abs(dt)) / TUNE.timing) * 1.2, 0, 1);
     if (q < 0.16) return { type: 'foul' };
     const spray = (dt / TUNE.timing) * 50 * batter.side + gauss() * 5;
     if (Math.abs(spray) > 45) return { type: 'foul' };
     return {
       type: 'contact', q, spray,
       ev: ((88 + 80 * q) * power(batterInfo)) / 3.6,
-      la: clamp(13 + (T.y - swing.y) * 190 + gauss() * 4, -28, 62),
+      la: clamp(13 + (T.y - swing.y) * (1 - TUNE.aimAssist) * 190 + gauss() * 6, -28, 62),
     };
   }
 
@@ -549,13 +554,17 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     S.strikes = 0;
     S.bases = [null, null, null];
     const N = TUNE.innings;
+    let extraStart = false; // 這次換局是不是剛進入延長賽
     if (S.half === 0) {
       if (S.inning >= N && S.score[1] > S.score[0]) return gameOver();
       S.half = 1;
     } else {
-      if (S.inning >= N) return gameOver();
+      // 打滿規定局數：分出勝負就結束；平手進延長賽，延長局數用完仍平手才以和局收場
+      if (S.inning >= N && S.score[0] !== S.score[1]) return gameOver();
+      if (S.inning >= N + TUNE.extra) return gameOver();
       S.half = 0;
       S.inning++;
+      extraStart = S.inning === N + 1;
     }
     S.lines[S.half][S.inning - 1] = 0;
     batterInfo = null;
@@ -563,13 +572,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     ui.pitchMenu(null);
     ui.hint('');
     refresh();
-    ui.banner({ kicker: '攻守交替', title: `${S.inning} 局${S.half ? '下' : '上'}`, sub: `${teams[bat()].name} 進攻` }, 2.2);
-    sayParts(line.change(S.inning, S.half, teams[bat()].name), true);
+    const extra = S.inning > N;
+    ui.banner({ kicker: extra ? '延長賽' : '攻守交替', title: `${S.inning} 局${S.half ? '下' : '上'}`, sub: extraStart ? `雙方 ${S.score[0]}：${S.score[1]} 平手，比賽繼續` : `${teams[bat()].name} 進攻` }, extraStart ? 3.2 : 2.2);
+    sayParts(line.change(S.inning, S.half, teams[bat()].name, extraStart), true);
     setPhase('switch'); // 兩隊跑完位置後由 updateSwap 開始下一個打席
   }
 
   function gameOver() {
     S.over = true;
+    S.regulation = TUNE.innings;
     removeBatter();
     batterInfo = null;
     setPhase('over');
@@ -869,7 +880,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (!active()) return;
     if (phase === 'select') setPhase('meter');
     else if (phase === 'meter') throwWithMeter();
-    else if (userBatting() && !swing && (phase === 'set' || phase === 'windup' || phase === 'flight')) {
+    else if (userBatting() && !swing && phase === 'flight') {
+      // 球出手後才算揮棒：投手還沒投就按到，不會浪費掉這一次揮棒
       swing = { at: gt, x: aim.x, y: aim.y };
       batter.play('swing', 0.34, 'stance');
       sfx.swing();
@@ -943,7 +955,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       pci.material.color.set(onTarget ? '#58f08a' : '#d8ff3e');
     }
     // 該揮棒的那一小段時間：落點圈變綠色，並跳出「揮！」
-    const swingWindow = !!(batting && pitch && phase === 'flight' && !swing && Math.abs(pitch.Tf - pitch.t - 0.12) <= TUNE.timing);
+    const swingWindow = !!(batting && pitch && phase === 'flight' && !swing && Math.abs(pitch.Tf - pitch.t - LEAD) <= TUNE.timing);
     ballMark.material.color.set(swingWindow ? '#58f08a' : '#ff7a4d');
     ui.swingNow(swingWindow);
     if (!userBatting() || phase === 'play' || phase === 'switch' || phase === 'over') ui.batHelp(false);
@@ -989,7 +1001,9 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
         batter.play('swing', 0.34, 'stance');
         sfx.swing();
       }
-      if (s >= 1 && !pitch.resolved) resolvePitch();
+      // 我方打擊且還沒揮棒：球到本壘後多等一下，晚一點點按也算數
+      const wait = userBatting() && !swing ? GRACE : 0;
+      if (pitch.t >= pitch.Tf + wait && !pitch.resolved) resolvePitch();
     }
     if (phase === 'call' && pitch) {
       // 沒打到的球繼續飛進捕手手套

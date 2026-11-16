@@ -23,7 +23,7 @@ export function renderPortraits(game) {
 
   for (const team of [game.away, game.home]) {
     for (const p of [...team.lineup, team.sp]) {
-      const g = makePlayer({ ...team.kit, skin: p.skin, hair: p.hair, hairStyle: p.hairStyle, icon: team.icon });
+      const g = makePlayer({ ...team.kit, skin: p.skin, hair: p.hair, no: p.no, name: p.name, look: p.look, flat: true });
       g.rotation.y = -0.25;
       scene.add(g);
       r.render(scene, cam);

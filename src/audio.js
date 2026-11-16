@@ -302,12 +302,20 @@ async function loadVoice() {
     const entries = Object.entries(manifest);
     voiceStatus.total = entries.length;
     let i = 0;
+    // 人聲不需要很高的取樣率：用 24kHz 解碼，整句式的音檔比較長，這樣記憶體用量少一半
+    const Off = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+    let dec = ctx;
+    try {
+      if (Off) dec = new Off(1, 1, 24000);
+    } catch (e) {
+      dec = ctx;
+    }
     const worker = async () => {
       while (i < entries.length) {
         const [text, file] = entries[i++];
         try {
           const buf = await (await fetch(`audio/voice/${file}`)).arrayBuffer();
-          clips.set(text, await ctx.decodeAudioData(buf));
+          clips.set(text, await dec.decodeAudioData(buf));
           voiceStatus.loaded++;
         } catch (e) {
           /* 單一音檔載入失敗：那一句會退回用系統語音唸 */

@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite';
 
-// 兩個頁面：遊戲本體（index.html）與球員模型檢視頁（viewer.html）
+// 三個頁面：遊戲本體（index.html）、球員模型檢視頁（viewer.html）、球員一覽（lineup.html）
 export default defineConfig({
   build: {
     rollupOptions: {
-      input: { main: 'index.html', viewer: 'viewer.html' },
+      input: { main: 'index.html', viewer: 'viewer.html', lineup: 'lineup.html' },
     },
   },
 });

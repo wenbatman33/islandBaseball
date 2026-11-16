@@ -20,3 +20,5 @@ public/models/player/*_tex.png
 public/models/_候選預覽/*
 !public/models/_候選預覽/concept-player-sheet.png
 !public/models/_候選預覽/concept-player-sheet-脫帽.png
+.venv-tts/
+試聽/

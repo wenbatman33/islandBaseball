@@ -114,7 +114,7 @@ export function buildGameUI(root) {
         `<div class="fn-row ${S.score[i] > S.score[1 - i] ? 'win' : ''}"><i class="emblem" style="--c1:${t.c1};--c2:${t.c2}">${t.glyph}</i><b>${t.name}</b><span>${S.hits[i]} 安打</span><em>${S.score[i]}</em></div>`;
       elFinal.innerHTML = `
         <div class="fn-box">
-          <div class="p-kicker">FINAL · 比賽結束</div>
+          <div class="p-kicker">FINAL · 比賽結束${S.inning > S.regulation ? ` · 延長至第 ${S.inning} 局` : ''}</div>
           <h2>${verdict}</h2>
           ${row(away, 0)}${row(home, 1)}
           <button type="button" id="again">再來一場</button>
