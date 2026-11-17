@@ -32,3 +32,6 @@ art/**/gen.out
 tools/blender/__pycache__/
 # 舊版球員模型（遊戲已不使用，只留在本機）
 public/models/player/player_v6.glb
+
+# 測試頁用的模型（由 art/ 底下的檔案複製過來，檔案大）
+public/lab/*.glb

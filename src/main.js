@@ -136,7 +136,9 @@ async function start() {
   composer.addPass(grade);
 
   // 球員模型要先載入，頭像和場上球員才能建立
-  await loadPlayerModel();
+  // 試用新角色：網址加 ?model=real 載入寫實球員（測試頁用的模型，尚未正式放進遊戲）
+  const modelUrl = new URLSearchParams(location.search).get('model') === 'real' ? '/lab/batter_game.glb' : undefined;
+  await loadPlayerModel(modelUrl);
 
   // UI
   renderPortraits(GAME);

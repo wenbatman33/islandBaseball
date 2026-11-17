@@ -55,7 +55,7 @@ print(f"縮放 ×{K:.4f}")
 
 # ════════ 減面：每人 3.1 萬三角形，全隊 18 人加主審就有 60 萬，還要再畫一次陰影。減到約 1.2 萬 ════════
 # 先合併貼圖接縫上重複的點（網格在接縫處才連得起來，減面時不會裂開），骨頭權重會跟著保留
-TRIS = 12000
+TRIS = int(os.environ.get("RIG_TRIS", 12000))
 for o in scene.objects:
     o.select_set(o is body)
 bpy.context.view_layer.objects.active = body
@@ -64,13 +64,28 @@ bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.mesh.remove_doubles(threshold=1e-5)
 bpy.ops.object.mode_set(mode="OBJECT")
 tris0 = sum(len(p.vertices) - 2 for p in body.data.polygons)
+# 臉、頭盔和胸前的隊名是最常被近看的地方，減面時優先保留；省下的面數從褲子、背部這些大片平滑的區域拿
+keep = body.vertex_groups.new(name="_keep")
+_zs = [v.co.z for v in body.data.vertices]
+_h = max(_zs) - min(_zs)
+for v in body.data.vertices:
+    z, y = (v.co.z - min(_zs)) / _h, v.co.y
+    w = 1.0 if z > 0.82 else (0.6 if 0.62 < z < 0.78 and y < -0.04 else 0.0)
+    if w:
+        keep.add([v.index], w, "REPLACE")
 dec = body.modifiers.new("dec", "DECIMATE")
 dec.ratio = min(1.0, TRIS / tris0)
 dec.use_collapse_triangulate = True
+dec.vertex_group = "_keep"
+dec.invert_vertex_group = True  # 這個修改器的權重越高減得越多，反轉後才是「權重高的保留」
+dec.vertex_group_factor = 8.0
 while body.modifiers[0] != dec:
     bpy.ops.object.modifier_move_up(modifier=dec.name)
 bpy.ops.object.modifier_apply(modifier=dec.name)
 print(f"減面 {tris0} → {sum(len(p.vertices) - 2 for p in body.data.polygons)} 三角形")
+_top = max(v.co.z for v in body.data.vertices)
+print("頭部三角形", sum(1 for p in body.data.polygons if p.center.z > _top * 0.82))
+body.vertex_groups.remove(body.vertex_groups["_keep"])
 # ════════ 修正腿的關節：Meshy 自動綁定把髖關節放在胯下下方（0.78 m）、膝蓋高了約 10 公分（0.59 m），
 # 腿會在大腿中段彎曲、大腿上半黏在骨盆上。移到模型實際的位置後，用 Blender 依骨頭重新計算腿部的皮膚權重 ════════
 LEG_FIX = {"hip": 0.88, "knee": 0.49, "ankle": 0.13}  # 高度（公尺，身高 1.903 m 的模型）
@@ -253,6 +268,7 @@ CLIPS = {
     "swing": ("swing", 0.0, 1.5, -98, "keep", False),
 }
 BATTING = {"stance", "swing"}
+BLEND = {"crouch": ("ready", 0.45)}  # 動作名: (混合的另一個動作, 原動作佔的比例)
 
 if arm.animation_data is None:
     arm.animation_data_create()
@@ -539,7 +555,33 @@ def build(name, spec):
     src_name, t0, t1, yaw, move, pingpong = spec
     global BAT_PREV
     BAT_PREV = None
-    frames = sample_cmu(t0, t1) if src_name == "cmu" else sample(SRC_ACT[src_name], t0, t1)
+    if src_name.startswith("pose_"):
+        frames = fielding_frames(src_name[5:])
+    elif src_name.startswith("cmu"):
+        frames = sample_cmu(t0, t1, CMU_MORE.get(src_name))
+    else:
+        frames = sample(SRC_ACT[src_name], t0, t1)
+    if name in BLEND:
+        # 和另一個動作混合：AI 生成的「蹲低」是坐到腳跟上的全蹲，守備員接滾地球只會半蹲，
+        # 所以每根骨頭取「守備預備」和「全蹲」之間的姿勢（骨盆高度之後由踩地修正重新對齊）
+        other, w = BLEND[name]
+        fo = sample(SRC_ACT[other], None, None)
+        mixed = []
+        for i, (basis, hm) in enumerate(frames):
+            ob, ohm = fo[min(i, len(fo) - 1)]
+            nb = {}
+            for k, m in basis.items():
+                if k not in ob:
+                    nb[k] = m
+                    continue
+                q = ob[k].to_quaternion().slerp(m.to_quaternion(), w)
+                nm = q.to_matrix().to_4x4()
+                nm.translation = ob[k].translation.lerp(m.translation, w)
+                nb[k] = nm
+            nh = ohm.to_quaternion().slerp(hm.to_quaternion(), w).to_matrix().to_4x4()
+            nh.translation = ohm.translation.lerp(hm.translation, w)
+            mixed.append((nb, nh))
+        frames = mixed
     if name in MIRROR:
         frames = [mirror_frame(b) for b, _ in frames]
     if pingpong:
@@ -626,14 +668,23 @@ for s, t in CMU_MAP.items():
 scene.frame_set(1)  # 第 1 格是 T 字站姿：用它的骨盆高度算兩邊的比例（靜止姿勢的骨盆在原點，不能用）
 CMU_K = REST_HIPS.z / (CW @ cmu.pose.bones["Hips"].head).z
 
+# 同一位受試者的其他真人動作（骨架相同，靜止姿勢與比例都沿用上面的）：124_01 是完整的投球
+CMU_MORE = {}
+for _key, _file in {"cmu_pitch": "124_01.bvh"}.items():
+    _before = set(scene.objects)
+    bpy.ops.import_anim.bvh(filepath=os.path.join(os.path.dirname(CMU_FILE), _file), global_scale=1.0, use_fps_scale=True,
+                            update_scene_fps=False, update_scene_duration=False, axis_forward="-Z", axis_up="Y", rotate_mode="NATIVE")
+    CMU_MORE[_key] = next(o for o in scene.objects if o not in _before)
+    CMU_MORE[_key].name = _key
 
-def sample_cmu(t0, t1):
+
+def sample_cmu(t0, t1, src=None):
     frames = []
     n = int(round((t1 - t0) * FPS))
     for i in range(n + 1):
         f = 1 + (t0 + i / FPS) * FPS  # 匯入時已換算成每秒 30 格，第 1 格是 0 秒
         scene.frame_set(int(math.floor(f)), subframe=f - math.floor(f))
-        cp = cmu.pose.bones
+        cp = (src or cmu).pose.bones
         M, basis = {}, {}
         for n_ in ORDER:
             p = PARENT[n_]
@@ -726,6 +777,59 @@ def ik_leg(side, T, pole):
     q = (ft.head - lo.head).normalized().rotation_difference((S + dn * dist - lo.head).normalized())
     lo.matrix = Matrix.Translation(lo.head.copy()) @ (q.to_matrix() @ lo.matrix.to_3x3()).to_4x4()
     bpy.context.view_layer.update()
+
+
+# ════════ 守備姿勢：照內野手的標準姿勢直接擺關節（AI 生成的守備預備是歪一邊的弓箭步、蹲低是坐到腳跟的全蹲） ════════
+#   drop 骨盆下降；lean 上身前傾角度；wide 每隻腳往外移；hands 左右手腕位置（相對兩腳中點的地面：+X 左、-Y 前、+Z 上）
+#   守備預備：雙腳比肩寬、膝蓋彎、重心在前腳掌、雙手放在膝蓋前方
+#   蹲低（接滾地球）：臀部壓低、背打平、手套伸到身體前方貼近地面、另一手在手套上方準備蓋球
+FIELD_POSE = {
+    "ready": dict(drop=0.17, lean=30, wide=0.14, hands={"Left": (0.22, -0.36, 0.60), "Right": (-0.22, -0.36, 0.60)}),
+    "crouch": dict(drop=0.36, lean=58, wide=0.22, hands={"Left": (0.06, -0.52, 0.20), "Right": (-0.10, -0.46, 0.32)}),
+}
+
+
+def _turn(pb, deg):
+    """骨頭繞自己的根部、沿骨架的 X 軸轉（正值往前傾）。"""
+    h = pb.head.copy()
+    pb.matrix = Matrix.Translation(h) @ Matrix.Rotation(math.radians(deg), 4, "X") @ Matrix.Translation(-h) @ pb.matrix
+    bpy.context.view_layer.update()
+
+
+def fielding_frames(kind, n=90):
+    c = FIELD_POSE[kind]
+    frames = []
+    for i in range(n):
+        for pb in pbs:
+            pb.matrix_basis = Matrix.Identity(4)
+        bpy.context.view_layer.update()
+        breath = math.sin(2 * math.pi * i / (n - 1))  # 輕微起伏，頭尾相接
+        feet = {s: REST[P + s + "Foot"].translation.copy() for s in ("Left", "Right")}
+        mid = (feet["Left"] + feet["Right"]) / 2
+        # 骨盆：往下、往後坐，並前傾（前傾的四成在骨盆，其餘分給脊椎）
+        M = hips.matrix.copy()
+        M.translation = REST_HIPS + Vector((0, c["drop"] * 0.55, -c["drop"] + 0.006 * breath))
+        hips.matrix = M
+        bpy.context.view_layer.update()
+        _turn(hips, c["lean"] * 0.4)
+        for b in ("Spine", "Spine1", "Spine2"):
+            _turn(pbs[P + b], c["lean"] * 0.2 + 0.4 * breath)
+        _turn(pbs[P + "Neck"], -c["lean"] * 0.45)  # 抬頭看前方
+        _turn(pbs[P + "Head"], -c["lean"] * 0.3)
+        # 腳：往外站開，腳掌維持貼地；膝蓋朝前並略往外
+        for s, sign in (("Left", 1), ("Right", -1)):
+            T = feet[s] + Vector((sign * c["wide"], 0, 0))
+            ik_leg(s, T, Vector((sign * 0.45, -1, 0)).normalized())
+            ft = pbs[P + s + "Foot"]
+            ft.matrix = Matrix.Translation(ft.head.copy()) @ (Matrix.Rotation(math.radians(sign * 14), 3, "Z") @ REST[P + s + "Foot"].to_3x3()).to_4x4()
+            bpy.context.view_layer.update()
+        # 手：手肘朝外、略往後
+        for s, sign in (("Left", 1), ("Right", -1)):
+            T = Vector((mid.x, mid.y, 0)) + Vector(c["hands"][s])
+            ik_arm(s, T, Vector((sign * 0.8, 0.45, -0.1)).normalized())
+        bpy.context.view_layer.update()
+        frames.append(({pb.name: pb.matrix_basis.copy() for pb in pbs}, hips.matrix.copy()))
+    return frames
 
 
 def widen_stance(name, t):
@@ -825,6 +929,11 @@ for _s in ("Left", "Right"):
 # 打擊兩段：預備（雙手穩定在後肩的那一段，來回播放成循環）、揮棒（抬腳 → 跨步 → 2.87 秒擊球 → 收棒）
 CLIPS["stance"] = ("cmu", 0.8, 2.2, 0, "none", True)
 CLIPS["swing"] = ("cmu", 2.2, 3.35, 0, "keep", False)
+# 投球、傳球維持原本的動作（CLIPS 最上面的設定）。試過改用真人投球 124_01（"cmu_pitch"，2.2～4.0 秒、轉向 -6°），
+# 使用者比較後選擇原本的版本，所以不覆蓋
+CLIPS["ready"] = ("pose_ready", None, None, 0, "none", False)
+CLIPS["crouch"] = ("pose_crouch", None, None, 0, "none", False)
+BLEND = {}
 MIRROR = set()
 ADJUST_W = {}  # 真人動作不需要手動修正姿勢
 
@@ -832,6 +941,8 @@ for pb in pbs:
     pb.rotation_mode = "QUATERNION"
 ACTIONS = {name: build(name, spec) for name, spec in CLIPS.items()}
 bpy.data.objects.remove(cmu)
+for _o in CMU_MORE.values():
+    bpy.data.objects.remove(_o)
 
 # ════════ 3. 球棒網格（綁在 bat 骨頭上） ════════
 BAT_LEN = 1.05  # 卡通比例的打者（頭大）配真實長度的球棒看起來太短、也掃不到本壘板外側，加長
