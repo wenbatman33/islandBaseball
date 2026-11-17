@@ -17,8 +17,8 @@ function lookOf(name, pos, hr = 0, i = 0, seed = 0) {
   const rnd = () => ((h = (Math.imul(h, 1664525) + 1013904223) >>> 0) / 4294967296);
   const power = Math.min(1, hr / 12);
   const look = {
-    h: 0.95 + rnd() * 0.11,
-    w: 0.95 + rnd() * 0.06 + power * 0.09,
+    h: 0.97 + rnd() * 0.07, // 真人比例的模型：差異不能太大，否則會像被壓扁或拉長
+    w: 0.98 + rnd() * 0.03 + power * 0.03,
     head: 0.96 + rnd() * 0.07,
     face: FACES[(i * 2 + seed) % FACES.length], // 同隊九個人輪流分到不同的臉部特徵，不會撞在一起
     glasses: null,

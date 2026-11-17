@@ -104,7 +104,7 @@ async function start() {
   scene.add(hemi);
   const sun = new THREE.DirectionalLight();
   sun.castShadow = true;
-  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.mapSize.set(2048, 2048); // 4096 太吃顯示卡；2048 在比賽鏡頭距離下看不出差別
   const sc = sun.shadow.camera;
   sc.left = -185;
   sc.right = 185;
@@ -157,7 +157,7 @@ async function start() {
     scene, camera, canvas, data: GAME, hud, ui, scoreboard: stadium.userData.scoreboard, director,
   });
   window.__game = game;
-  window.__dbg = { camera, controls, director }; // 檢查用
+  window.__dbg = { camera, controls, director, renderer, scene }; // 檢查用
   director.setAnchors(game.anchors);
   director.setLiveCam(game.liveCam);
   director.onChange((st) => {
@@ -277,7 +277,7 @@ async function start() {
   }
 
 
-  // 減輕負擔：上限 60 fps、陰影隔幀更新、分頁不可見時不渲染
+  // 減輕負擔：上限 60 fps、陰影每 3 格更新、分頁不可見時不渲染
   renderer.shadowMap.autoUpdate = false;
   const clock = new THREE.Clock();
   let acc = 0;
@@ -291,7 +291,7 @@ async function start() {
     if (acc < 1 / 62) return;
     const dt = Math.min(0.1, acc);
     acc = 0;
-    if ((frame++ & 1) === 0) renderer.shadowMap.needsUpdate = true;
+    if (frame++ % 3 === 0) renderer.shadowMap.needsUpdate = true; // 陰影每 3 格更新一次
     if (director.state.free) {
       controls.autoRotate = LOOK.camera.autoOrbit;
       controls.update();

@@ -1,5 +1,7 @@
-// 遊戲用的球員：載入帶骨架與動作的模型（public/models/player/player_game.glb），
-// 頭、頭髮、帽子都用模型本身雕好的造型，不用程式另外捏。
+// 遊戲用的球員：載入帶骨架與動作的模型（public/models/player/player_v7.glb：Meshy 生成、Meshy 自動綁骨架、Meshy 文字轉動畫，
+// 再用 tools/blender/rig_v7.py 整理），
+// 頭、頭髮、帽子都用模型本身的造型，不用程式另外捏。帽子是獨立的網格（cap），戴頭盔時藏起來。
+// 下面所有座標都是這個模型靜止姿勢的座標（公尺，Y 朝上、+Z 是臉的方向），量測值見 art/concept_v2/build/rig_v6.json
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
@@ -21,7 +23,7 @@ const FPS = 30;
 let SRC = null; // { scene, clips: {名稱: AnimationClip} }
 
 // 遊戲開始前先載入一次；之後 makePlayer 才能同步建立球員
-export function loadPlayerModel(url = '/models/player/player_game.glb') {
+export function loadPlayerModel(url = '/models/player/player_v7.glb') {
   return new Promise((resolve, reject) => {
     new GLTFLoader().load(
       url,
@@ -31,6 +33,15 @@ export function loadPlayerModel(url = '/models/player/player_game.glb') {
         gltf.animations.forEach((c) => {
           c.tracks = c.tracks.filter((t) => !t.name.endsWith('.scale'));
           clips[c.name] = c;
+        });
+        // 區域標記（Blender 匯出成頂點顏色）改名成 region：不讓 Three.js 當成要乘在顏色上的頂點顏色
+        gltf.scene.traverse((o) => {
+          const g = o.geometry;
+          if (g && g.getAttribute('color')) {
+            g.setAttribute('region', g.getAttribute('color'));
+            g.deleteAttribute('color');
+          }
+          if (o.material) o.material.vertexColors = false;
         });
         SRC = { scene: gltf.scene, clips };
         resolve(SRC);
@@ -45,8 +56,10 @@ export function loadPlayerModel(url = '/models/player/player_game.glb') {
 // 深綠（帽子、內搭、襪子、滾邊、背號）→ accent；米白（球衣）→ jersey；腰帶以下的米白（褲子）→ pants；膚色乘上膚色係數
 const REF_SKIN = new THREE.Color('#f2c29e');
 // 背號與姓名印在背上的範圍、臉部特徵貼在臉上的範圍（模型靜止姿勢的座標：x0, y0, 寬, 高）
-const BACK_RECT = new THREE.Vector4(-0.135, 0.735, 0.27, 0.25);
-const FACE_RECT = new THREE.Vector4(-0.32, 1.02, 0.64, 0.64);
+const BACK_RECT = new THREE.Vector4(-0.15, 1.1, 0.3, 0.29);
+const FACE_RECT = new THREE.Vector4(-0.13, 1.56, 0.26, 0.26);
+// 身體各部位的高度：領口（以上不算球衣、深色算頭髮）、腰帶（以下是褲子）、軀幹的半寬（以內沒有露出皮膚）
+const BODY = { collar: 1.52, belt: 1.065, torsoX: 0.22, clothTop: 1.46 };
 let BLANK = null;
 const blankTex = () => BLANK || (BLANK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1));
 
@@ -121,33 +134,36 @@ function faceTexture(kind, hair) {
     };
     const hc = new THREE.Color(hair || '#1d1a18');
     const dark = `rgba(${Math.round(hc.r * 200)},${Math.round(hc.g * 200)},${Math.round(hc.b * 200)},A)`;
+    const k = FS;
     if (kind === 'eyeblack') {
       // 眼睛下方的防眩光黑條
       ctx.fillStyle = 'rgba(22,22,26,0.9)';
-      for (const sx of [-1, 1]) ell(sx * F.eyeX, F.eyeY - 0.078, 0.036, 0.0105, sx * -0.1);
+      for (const sx of [-1, 1]) ell(sx * F.eyeX, F.eyeY - 0.028, 0.036 * k, 0.0105 * k, sx * -0.1);
     } else if (kind === 'stubble') {
-      soft(0, F.mouthY - 0.005, 0.15, 0.062, 'rgba(70,74,82,A)', 0.3);
+      soft(0, F.mouthY - 0.004, 0.15 * k, 0.062 * k, 'rgba(70,74,82,A)', 0.3);
     } else if (kind === 'goatee') {
       ctx.fillStyle = dark.replace('A', 0.9);
-      ell(0, F.mouthY - 0.05, 0.036, 0.024);
+      ell(0, F.mouthY - 0.034, 0.03 * k, 0.018 * k); // 下巴（嘴唇下方留一點距離，不然像張著嘴）
     } else if (kind === 'mustache') {
       ctx.fillStyle = dark.replace('A', 0.9);
-      for (const sx of [-1, 1]) ell(sx * 0.03, F.mouthY + 0.03, 0.036, 0.011, sx * 0.22);
+      for (const sx of [-1, 1]) ell(sx * 0.03 * k, F.mouthY + 0.012, 0.036 * k, 0.011 * k, sx * 0.22);
     } else if (kind === 'brows') {
       // 粗眉：蓋在原本的眉毛上，眉尾上揚
       ctx.fillStyle = dark.replace('A', 1);
-      for (const sx of [-1, 1]) ell(sx * F.eyeX, F.browY + 0.004, 0.068, 0.019, sx * -0.2);
+      for (const sx of [-1, 1]) ell(sx * F.eyeX, F.browY + 0.002, 0.068 * k, 0.019 * k, sx * -0.2);
     } else if (kind === 'freckle') {
       ctx.fillStyle = 'rgba(150,84,52,0.55)';
-      for (const sx of [-1, 1]) for (const [dx, dy] of [[0, 0], [0.03, 0.012], [-0.028, 0.01], [0.012, -0.018], [-0.014, -0.02]]) ell(sx * (F.eyeX + 0.02) + dx, F.eyeY - 0.095 + dy, 0.006, 0.006);
+      for (const sx of [-1, 1]) for (const [dx, dy] of [[0, 0], [0.03, 0.012], [-0.028, 0.01], [0.012, -0.018], [-0.014, -0.02]]) ell(sx * (F.eyeX + 0.02 * k) + dx * k, F.eyeY - 0.04 + dy * k, 0.006 * k, 0.006 * k);
     }
   });
 }
 // 臉上的定位點（模型靜止姿勢的座標）
-const F = { eyeX: 0.123, eyeY: 1.234, browY: 1.335, mouthY: 1.126 };
+const F = { eyeX: 0.046, eyeY: 1.692, browY: 1.72, mouthY: 1.613 };
+const FS = 0.42; // 臉部配件的尺寸係數（數字是照舊模型的大臉寫的）
 
 function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, look }, creamTop, decal) {
   const m = base.clone();
+  m.vertexColors = false; // 頂點顏色是區域標記（著色器自己讀），不是拿來乘在顏色上的
   const u = {
     uAccent: { value: new THREE.Color(accent).convertLinearToSRGB() },
     uJersey: { value: new THREE.Color(jersey).convertLinearToSRGB() },
@@ -171,8 +187,8 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
   m.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, u);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vRest;\nvarying float vRestNz;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRest = position;\nvRestNz = normal.z;'); // 靜止姿勢的位置與朝向：分球衣和褲子、定位背號與臉
+      .replace('#include <common>', '#include <common>\nvarying vec3 vRest;\nvarying float vRestNz;\nattribute vec3 region;\nvarying vec3 vRegion;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRest = position;\nvRestNz = normal.z;\nvRegion = region;'); // 靜止姿勢的位置與朝向：分球衣和褲子、定位背號與臉
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
@@ -180,7 +196,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         uniform vec3 uAccent; uniform vec3 uJersey; uniform vec3 uPants; uniform vec3 uSkin; uniform vec3 uHair;
         uniform float uCreamTop; uniform float uDecal; uniform float uFlip;
         uniform sampler2D uBackTex; uniform sampler2D uFaceTex; uniform vec4 uBackRect; uniform vec4 uFaceRect;
-        varying vec3 vRest; varying float vRestNz;`,
+        varying vec3 vRest; varying float vRestNz; varying vec3 vRegion;`,
       )
       .replace(
         '#include <map_fragment>',
@@ -191,13 +207,13 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float mn = min(s.r, min(s.g, s.b));
           float ratio = mn / max(mx, 1e-3);
           float lum = dot(s, vec3(0.299, 0.587, 0.114));
-          float green = smoothstep(0.02, 0.07, s.g - max(s.r, s.b));
-          float cream = smoothstep(0.5, 0.64, lum) * smoothstep(0.7, 0.78, ratio) * (1.0 - smoothstep(0.93, 0.97, ratio)) * step(s.b, s.r) * step(vRest.y, uCreamTop);
-          // 軀幹和腿上沒有露出皮膚：球衣皺褶的暖色陰影要當成布料，否則深色球衣會出現一塊塊膚色
-          float clothZone = uDecal * step(vRest.y, 1.0) * step(abs(vRest.x), 0.27);
-          cream = max(cream, clothZone * (1.0 - green) * smoothstep(0.3, 0.42, lum) * step(s.b, s.r));
-          float skin = (1.0 - cream) * smoothstep(0.12, 0.2, s.r - s.b) * step(s.g, s.r) * step(s.b, s.g) * smoothstep(0.4, 0.55, lum);
-          vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(0.66, 0.7, vRest.y));
+          // 區域（模型的頂點顏色，Blender 裡用每個三角形的多數顏色標好）：R＝球衣布料、G＝皮膚。
+          // 布料整塊換成隊色，只有細節（綠色滾邊、深色鈕扣）逐點判斷；皮膚整塊乘上膚色
+          float green = smoothstep(0.02, 0.07, s.g - max(s.r, s.b)) * (1.0 - vRegion.g);
+          float darkPix = 1.0 - smoothstep(0.16, 0.28, lum);
+          float cream = uDecal * vRegion.r * (1.0 - green) * (1.0 - darkPix);
+          float skin = vRegion.g * (1.0 - smoothstep(0.82, 0.95, ratio) * smoothstep(0.55, 0.75, lum)); // 眼白不跟著膚色變暗
+          vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(${(BODY.belt - 0.01).toFixed(3)}, ${(BODY.belt + 0.01).toFixed(3)}, vRest.y));
           // 背上原本印死的 17：整塊改回球衣布料，再印上這位球員自己的姓名與背號
           vec2 bu = (vRest.xy - uBackRect.xy) / uBackRect.zw;
           float back = uDecal * step(vRestNz, -0.1) * step(0.0, bu.x) * step(bu.x, 1.0) * step(0.0, bu.y) * step(bu.y, 1.0);
@@ -213,7 +229,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float ink = texture2D(uBackTex, vec2(uFlip > 0.0 ? 1.0 - bu.x : bu.x, bu.y)).a * back;
           o = mix(o, uAccent * 0.92, ink);
           // 髮色：脖子以上的深色（頭髮、眉毛）
-          float hairM = uDecal * step(1.03, vRest.y) * (1.0 - smoothstep(0.17, 0.27, lum)) * (1.0 - smoothstep(0.1, 0.2, mx - mn));
+          float hairM = uDecal * step(${BODY.collar.toFixed(3)}, vRest.y) * (1.0 - smoothstep(0.17, 0.27, lum)) * (1.0 - smoothstep(0.1, 0.2, mx - mn));
           o = mix(o, uHair * clamp(0.45 + lum * 5.0, 0.45, 1.7), hairM * 0.85);
           // 臉部特徵：從正面貼上
           vec2 fu = (vRest.xy - uFaceRect.xy) / uFaceRect.zw;
@@ -224,7 +240,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         }`,
       );
   };
-  m.customProgramCacheKey = () => 'player-tint-10';
+  m.customProgramCacheKey = () => 'player-tint-v6-region';
   return m;
 }
 
@@ -252,7 +268,7 @@ export function makePlayer(opts) {
     } else if (o.material.map) {
       // 身體：只有脖子以下的米白色算球衣（頭上的淺色是眼白）；帽子：帽徽可以換色
       const key = o.name === 'cap' ? 'cap' : 'body';
-      if (!tints.has(key)) tints.set(key, tintedMaterial(o.material, opts, key === 'cap' ? 99 : 1.03, key === 'body'));
+      if (!tints.has(key)) tints.set(key, tintedMaterial(o.material, opts, key === 'cap' ? 99 : BODY.collar, key === 'body'));
       o.material = tints.get(key);
     }
   });
@@ -263,7 +279,7 @@ export function makePlayer(opts) {
   const look = opts.look || {};
   const build = { h: opts.flat ? 1 : look.h || 1, w: opts.flat ? 1 : look.w || 1 };
   inner.scale.set(build.w, build.h, build.w);
-  const headBone = inner.getObjectByName('head');
+  const headBone = inner.getObjectByName(BONE.head);
   if (headBone) {
     const k = look.head || 1;
     headBone.scale.set((k * (look.hx || 1)) / build.w, (k * (look.hy || 1)) / build.h, k / build.w);
@@ -283,7 +299,16 @@ export function makePlayer(opts) {
 }
 
 // ── 裝備：手套、頭盔、捕手護具、主審裝備、眼鏡、護腕。先在模型的靜止姿勢擺好位置，再掛到骨頭上跟著動 ──
-// 模型座標：X 左、Y 上、Z 前。頭的中心約在 (0, 1.36, -0.03)、眼睛高 1.23、肩 0.93、腰 0.69、膝 0.29、腳踝 0.10
+// 模型座標：X 左、Y 上、Z 前。帽子中心約 (0, 1.74, -0.055)、眼睛高 1.69、肩關節 1.40、腰帶 1.02、胯下 0.85、膝 0.50、腳踝 0.13
+// 各組裝備的零件是照舊的 Q 版模型寫的（數字不動），用 fit() 整組從舊位置搬到新模型對應的位置並縮放
+function fit(meshes, from, to, s) {
+  const g = new THREE.Group();
+  g.add(...meshes);
+  const k = Array.isArray(s) ? s : [s, s, s];
+  g.scale.set(...k);
+  g.position.set(to[0] - from[0] * k[0], to[1] - from[1] * k[1], to[2] - from[2] * k[2]);
+  return g;
+}
 const gearGeo = {};
 const gearMat = {};
 const geo = (key, make) => gearGeo[key] || (gearGeo[key] = make());
@@ -301,9 +326,18 @@ const sphere = () => geo('sphere', () => new THREE.SphereGeometry(1, 20, 14));
 const box = () => geo('box', () => new THREE.BoxGeometry(1, 1, 1));
 const shellGeo = () => geo('shell', () => new THREE.SphereGeometry(0.345, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.6));
 
+const HELMET_TILT = -0.36; // 負值：頂部往後、前緣抬高（正值會讓前緣壓到眼睛）
+// 裝備程式裡的骨頭名稱 → 模型的骨頭（Mixamo 命名；three.js 載入時會拿掉名稱裡的冒號）
+const BONE = {
+  head: 'mixamorigHead', chest: 'mixamorigSpine2', spine: 'mixamorigSpine', hips: 'mixamorigHips',
+  handL: 'mixamorigLeftHand', handR: 'mixamorigRightHand', forearmL: 'mixamorigLeftForeArm', forearmR: 'mixamorigRightForeArm',
+  thighL: 'mixamorigLeftUpLeg', thighR: 'mixamorigRightUpLeg', shinL: 'mixamorigLeftLeg', shinR: 'mixamorigRightLeg',
+  footL: 'mixamorigLeftFoot', footR: 'mixamorigRightFoot',
+};
+
 function addGear(inner, opts) {
   inner.updateMatrixWorld(true);
-  const bone = (name) => inner.getObjectByName(name);
+  const bone = (name) => inner.getObjectByName(BONE[name] || name);
   // 把一組零件掛到骨頭上（保持現在擺好的位置）
   const hang = (boneName, ...meshes) => {
     const b = bone(boneName);
@@ -322,12 +356,12 @@ function addGear(inner, opts) {
   if (opts.glove && !ump) {
     // 手套戴在模型的左手（左投的球員整個模型會鏡射，手套就到右手）。捕手用比較大、比較圓的捕手手套
     const leather = catcher ? gmat('mitt', '#6b3d1c', 0.7) : gmat('leather', '#8a5527', 0.75);
-    const k = catcher ? 1.32 : 1;
+    const k = (catcher ? 1.32 : 1) * 1.25;
     const glove = new THREE.Group();
     glove.add(part(sphere(), leather, null, [0.095 * k, 0.12 * k, 0.062 * k]));
     glove.add(part(sphere(), leather, [-0.01, 0.03, 0.09 * k], [0.04 * k, 0.068 * k, 0.04 * k]));
-    glove.position.set(0.385, 0.62, 0); // 左手掌心再往指尖一點
-    glove.rotation.z = 0.65; // 順著手臂的斜度
+    glove.position.set(0.37, 0.9, -0.03); // 左手掌心再往指尖一點
+    glove.rotation.z = 0.38; // 順著手臂的斜度
     hang('handL', glove);
   }
 
@@ -341,11 +375,14 @@ function addGear(inner, opts) {
     helmet.add(part(shellGeo(), shellMat));
     if (opts.helmet && !catcher && !ump) {
       const brimGeo = geo('brim', () => new THREE.CylinderGeometry(0.27, 0.27, 0.03, 28, 1, false, -Math.PI / 2, Math.PI));
-      helmet.add(part(brimGeo, shellMat, [0, -0.045, 0.2], null, [0.16, 0, 0]));
+      helmet.add(part(brimGeo, shellMat, [0, -0.045, 0.2], null, [0.16 - HELMET_TILT, 0, 0])); // 抵掉整頂往後傾的角度，帽簷才是平的
       // 護耳在面向投手的那一側。右打者的左耳朝投手；左打者整個模型鏡射，護耳也跟著換邊
       helmet.add(part(sphere(), shellMat, [0.3, -0.13, 0.0], [0.063, 0.15, 0.142]));
     }
-    helmet.position.set(0, 1.44, -0.06); // 頭的中心略高處
+    // 剛好比帽子大一圈，並往後傾：前緣停在眉毛上方，後緣往下蓋住後腦（帽子切掉後頭頂沒有頭髮，要蓋住）
+    helmet.position.set(0, 1.76, -0.06);
+    helmet.scale.set(0.43, 0.45, 0.48);
+    helmet.rotation.x = HELMET_TILT;
     hang('head', helmet);
   }
 
@@ -367,7 +404,7 @@ function addGear(inner, opts) {
     mask.push(part(sphere(), pad, [0, CY - 0.215, CZ - 0.012], [0.11, 0.036, 0.04])); // 下巴軟墊
     mask.push(part(sphere(), pad, [0, CY - 0.285, CZ - 0.03], [0.05, 0.05, 0.022])); // 護喉
     for (const sx of [-1, 1]) mask.push(part(box(), steel, [sx * 0.245, CY + 0.03, CZ - 0.11], [0.02, 0.035, 0.24], [0, sx * -0.38, 0])); // 兩側固定帶
-    hang('head', ...mask);
+    hang('head', fit(mask, [0, CY, CZ], [0, 1.69, 0.1], 0.48)); // 搬到新模型的臉前
 
     // 護胸：一節一節的橫向護墊，越往下越窄；背後有交叉的固定帶
     const chestMat = ump ? gmat('umpPad', '#1b1d21', 0.85) : new THREE.MeshStandardMaterial({ color: accent, roughness: 0.85 });
@@ -383,8 +420,9 @@ function addGear(inner, opts) {
       for (const sx of [-1, 1]) chest.push(part(box(), strap, [0, 0.855, -0.112], [0.03, 0.4, 0.014], [0, 0, sx * 0.72])); // 背後交叉帶
       chest.push(part(box(), strap, [0, 0.735, -0.108], [0.3, 0.028, 0.014])); // 腰帶
     }
-    hang('chest', ...chest);
-    if (!ump) hang('spine', part(sphere(), chestMat, [0, 0.645, 0.075], [0.085, 0.05, 0.05])); // 護襠片
+    const TORSO = [[0, 0.835, 0], [0, 1.24, -0.06], [1.15, 1.55, 1.4]]; // 舊軀幹中心 → 新軀幹中心、縮放
+    hang('chest', fit(chest, ...TORSO));
+    if (!ump) hang('spine', fit([part(sphere(), chestMat, [0, 0.645, 0.075], [0.085, 0.05, 0.05])], ...TORSO)); // 護襠片
   }
 
   if (catcher) {
@@ -393,20 +431,21 @@ function addGear(inner, opts) {
     const strap = gmat('strap', '#191b1f', 0.9);
     for (const [side, sx] of [['L', 1], ['R', -1]]) {
       const x = sx * 0.111;
-      hang(`shin${side}`,
+      const LEG = [[x, 0.2, 0], [sx * 0.172, 0.31, -0.1], [1.1, 1.9, 1.15]]; // 舊小腿 → 新小腿（腿長很多）
+      hang(`shin${side}`, fit([
         part(sphere(), guard, [x, 0.2, 0.03], [0.068, 0.105, 0.062]),
         part(sphere(), strap, [x, 0.2, 0.068], [0.014, 0.1, 0.03]),
         part(sphere(), guard, [x, 0.315, 0.04], [0.066, 0.052, 0.058]),
         part(box(), strap, [x, 0.24, -0.02], [0.13, 0.016, 0.1]),
-        part(box(), strap, [x, 0.15, -0.02], [0.13, 0.016, 0.1]));
-      hang(`thigh${side}`, part(sphere(), guard, [x, 0.375, 0.045], [0.06, 0.04, 0.05]));
-      hang(`foot${side}`, part(sphere(), guard, [x, 0.075, 0.085], [0.055, 0.03, 0.06]));
+        part(box(), strap, [x, 0.15, -0.02], [0.13, 0.016, 0.1])], ...LEG));
+      hang(`thigh${side}`, fit([part(sphere(), guard, [x, 0.375, 0.045], [0.06, 0.04, 0.05])], ...LEG));
+      hang(`foot${side}`, fit([part(sphere(), guard, [x, 0.075, 0.085], [0.055, 0.03, 0.06])], [x, 0.075, 0.085], [sx * 0.19, 0.1, 0.03], 1.2));
     }
   }
 
   if (ump) {
     // 腰側的球袋
-    hang('hips', part(sphere(), gmat('umpBag', '#2c3036', 0.9), [0.175, 0.62, 0.03], [0.05, 0.065, 0.06]));
+    hang('hips', part(sphere(), gmat('umpBag', '#2c3036', 0.9), [0.225, 0.93, -0.03], [0.06, 0.08, 0.07]));
   }
 
   if (look.glasses && !catcher && !ump) {
@@ -421,25 +460,26 @@ function addGear(inner, opts) {
       g.push(part(box(), frame, [sx * 0.245, 1.25, 0.14], [0.008, 0.012, 0.26], [0, sx * -0.3, 0])); // 鏡腳
     }
     g.push(part(box(), frame, [0, 1.25, 0.29], [0.075, 0.01, 0.008])); // 鼻樑
-    hang('head', ...g);
+    hang('head', fit(g, [0, 1.236, 0.268], [0, 1.692, 0.082], [0.42, 0.42, 0.75])); // 搬到新模型的眼睛前面
   }
 
   if (look.band) {
     // 護腕：戴在手腕上方（'both' 兩手都戴）
     const bandMat = look.band === 'white' ? gmat('bandW', '#f2efe6', 0.9) : new THREE.MeshStandardMaterial({ color: accent, roughness: 0.9 });
-    const cyl = geo('band', () => new THREE.CylinderGeometry(0.056, 0.058, 0.05, 16));
-    hang('forearmR', part(cyl, bandMat, [-0.311, 0.716, 0], null, [0, 0, -0.653]));
-    hang('forearmL', part(cyl, bandMat, [0.315, 0.719, 0], null, [0, 0, 0.645]));
+    const cyl = geo('band6', () => new THREE.CylinderGeometry(0.04, 0.042, 0.055, 16));
+    hang('forearmR', part(cyl, bandMat, [-0.334, 1.02, -0.06], null, [0, 0, -0.376]));
+    hang('forearmL', part(cyl, bandMat, [0.334, 1.02, -0.06], null, [0, 0, 0.376]));
   }
 }
 
 // 單次動作：把「遊戲裡的進度 0–1」對應到動作檔的時間（秒）。
 // 投球：遊戲在進度 0.69 讓球離手，對到動作的出手那一格（第 41 格）。
 // 揮棒：從跨步前開始，進度 0.42 對到擊球那一格（第 25 格）。
+// 第 7 版（Meshy 動作）：投球在 1.25 秒出手；揮棒從 0.55 秒（開始轉身）到 1.0 秒擊球；傳球在 0.5 秒出手
 const ONE_SHOT = {
-  pitch: [[0, 0], [0.69, 41 / FPS], [1, 56 / FPS]],
-  swing: [[0, 17 / FPS], [0.42, 25 / FPS], [1, 36 / FPS]],
-  throw: [[0, 0], [1, 16 / FPS]],
+  pitch: [[0, 0], [0.69, 1.25], [1, 1.72]],
+  swing: [[0, 0.55], [0.42, 1.0], [1, 1.45]],
+  throw: [[0, 0], [0.5, 0.5], [1, 0.85]],
 };
 const BATTING = new Set(['stance', 'swing']);
 const FADE = 0.12;

@@ -63,7 +63,7 @@ function setPose(name) {
 function focus(i, kind = 'front') {
   const a = actors[i];
   const x = a.group.position.x;
-  const V = { front: [[x, 1.25, 4.2], [x, 0.85, 0]], back: [[x, 1.25, -4.2], [x, 0.85, 0]], face: [[x + 0.5, 1.35, 1.7], [x, 1.25, 0]], side: [[x + 4.2, 1.1, 0], [x, 0.85, 0]] }[kind];
+  const V = { front: [[x, 1.4, 4.6], [x, 1.0, 0]], back: [[x, 1.4, -4.6], [x, 1.0, 0]], face: [[x + 0.35, 1.75, 1.2], [x, 1.68, 0]], side: [[x + 4.2, 1.1, 0], [x, 0.85, 0]] }[kind];
   camera.position.set(...V[0]);
   controls.target.set(...V[1]);
   who.textContent = `${a.info.pos || ''} ${a.info.no ?? ''} ${a.info.name || ''}　${JSON.stringify(a.info.look || {})}`;

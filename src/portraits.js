@@ -18,8 +18,8 @@ export function renderPortraits(game) {
   scene.add(rim);
 
   const cam = new THREE.PerspectiveCamera(25, 1, 0.1, 20);
-  cam.position.set(0.32, 1.4, 2.55);
-  cam.lookAt(0, 1.3, 0);
+  cam.position.set(0.2, 1.7, 1.45); // 新模型（身高 1.9 m、頭比較小）的頭和肩膀
+  cam.lookAt(0, 1.63, 0);
 
   for (const team of [game.away, game.home]) {
     for (const p of [...team.lineup, team.sp]) {

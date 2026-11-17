@@ -22,3 +22,13 @@ public/models/_候選預覽/*
 !public/models/_候選預覽/concept-player-sheet-脫帽.png
 .venv-tts/
 試聽/
+
+# Meshy 原始下載與處理中間檔（很大，可重新下載或用 tools/blender 腳本重新產生）；設定圖與分解圖照常進版控
+art/**/*.glb
+art/**/build/
+art/**/review/*
+!art/**/review/*_sequence.png
+art/**/gen.out
+tools/blender/__pycache__/
+# 舊版球員模型（遊戲已不使用，只留在本機）
+public/models/player/player_v6.glb

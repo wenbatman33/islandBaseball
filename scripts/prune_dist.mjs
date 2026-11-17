@@ -14,6 +14,9 @@ function drop(path) {
 drop(join(DIST, 'models', '_候選預覽'));
 const players = join(DIST, 'models', 'player');
 if (existsSync(players)) for (const f of readdirSync(players)) if (f.endsWith('_tex.png')) drop(join(players, f));
+// 球員模型：只部署遊戲正在用的那一個（舊版模型留在本機的 public 裡，但不上線）
+const PLAYER_MODEL = 'player_v7.glb';
+if (existsSync(players)) for (const f of readdirSync(players)) if (f.endsWith('.glb') && f !== PLAYER_MODEL) drop(join(players, f));
 // 轉播語音：只部署目前句庫用到的音檔（換過語音或改過句子後留下的舊音檔不帶上線）
 const voice = join(DIST, 'audio', 'voice');
 if (existsSync(join(voice, 'manifest.json'))) {

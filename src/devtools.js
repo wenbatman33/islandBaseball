@@ -264,5 +264,5 @@ export function initDevTools({ applyLook, setView, views, camera, controls, dire
     if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) return;
     if (e.key === 'd' || e.key === 'D') toggle();
   });
-  document.getElementById('dev-toggle').addEventListener('click', toggle);
+  // 畫面上不放 DEV 按鈕（會和其他按鈕擠在一起），只用 D 鍵開關
 }
