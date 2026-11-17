@@ -20,7 +20,7 @@ import { buildField } from './field.js';
 import { buildStadium } from './stadium.js';
 import { buildEnvironment, buildSky } from './environment.js';
 import { renderPortraits } from './portraits.js';
-import { loadPlayerModel } from './player3d.js';
+import { loadPlayerModel, loadPlayerSet } from './player3d.js';
 import { buildIntroDOM, createDirector, SEGS } from './intro.js';
 import { buildHud } from './hud.js';
 import { buildGameUI } from './gameui.js';
@@ -136,9 +136,11 @@ async function start() {
   composer.addPass(grade);
 
   // 球員模型要先載入，頭像和場上球員才能建立
-  // 試用新角色：網址加 ?model=real 載入寫實球員（測試頁用的模型，尚未正式放進遊戲）
-  const modelUrl = new URLSearchParams(location.search).get('model') === 'real' ? '/lab/batter_game.glb' : undefined;
-  await loadPlayerModel(modelUrl);
+  // 試用新角色：網址加 ?model=chibi 載入卡通比例的四個角色模型；?model=real 是寫實球員（都是測試頁用的模型，尚未正式放進遊戲）
+  const modelKind = new URLSearchParams(location.search).get('model');
+  if (modelKind === 'chibi') {
+    await loadPlayerSet({ batter: '/lab/chibi_batter.glb', fielder: '/lab/chibi_fielder.glb', catcher: '/lab/chibi_catcher.glb', umpire: '/lab/chibi_umpire.glb' });
+  } else await loadPlayerModel(modelKind === 'real' ? '/lab/batter_pro_game.glb' : undefined);
 
   // UI
   renderPortraits(GAME);

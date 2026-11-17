@@ -149,6 +149,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   let foul = null;
   let selPitch = 0;
   let released = false;
+  let throwTrack = null; // 投球時追蹤手的位置，用來決定出手的那一格
   let lastPitch = '';
   const lastType = [null, null];
   const aim = { x: 0, y: zc };
@@ -315,12 +316,32 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     pitcher().play('pitch', 1.25, 'idle');
   }
 
-  function release() {
+  // 投手手上的球：掌心＝手腕骨和中指根部的中點（用兩根骨頭的實際位置算，不同身材的模型都對得上）。
+  // 出手前球跟著手走，出手時從這裡飛出去
+  const _wrist = new THREE.Vector3();
+  const _knuckle = new THREE.Vector3();
+  function pitcherBallPos() {
+    const p = pitcher();
+    if (!p) return null;
+    const w = p.group.getObjectByName('mixamorigRightHand'); // 左投是整個模型鏡射，丟球的仍是這隻手
+    const k = p.group.getObjectByName('mixamorigRightHandMiddle1');
+    if (!w) return null;
+    p.group.updateMatrixWorld(true);
+    w.getWorldPosition(_wrist);
+    if (k) _wrist.lerp(k.getWorldPosition(_knuckle), 0.6);
+    // 球放在場地的群組裡（群組本身有墊高），要把世界座標換成球所在群組的座標，不然球會比手高一截
+    if (ball.parent) ball.parent.worldToLocal(_wrist);
+    return _wrist;
+  }
+
+  function release(from) {
     released = true;
     const hand = pitcher().hand;
     const def = PITCHES[plan.name];
     const mul = GRADE_MUL[plan.g] || 1;
-    const R = { x: -0.3 * hand, y: MOUND_Y + 1.6, z: -18.44 + 0.9 };
+    // 出手點＝這一刻手的實際位置（原本是寫死的固定點，球會憑空出現在手的旁邊）
+    const hp = from || pitcherBallPos();
+    const R = hp ? { x: hp.x, y: hp.y, z: hp.z } : { x: -0.3 * hand, y: MOUND_Y + 1.6, z: -18.44 + 0.9 };
     const B = { x: def.bx * hand * mul, y: def.by * mul };
     const T = plan.T;
     const d = Math.hypot(T.x - R.x, T.y - R.y, R.z);
@@ -333,6 +354,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     pitch.arrive = gt + pitch.Tf; // 球到本壘的時間點
     setPhase('flight');
     ball.visible = true;
+    ball.position.set(R.x, R.y, R.z); // 出手這一格球就在出手點（不要留在已經往回收的手上）
     if (!userBatting()) aiSwing = aiBat();
   }
 
@@ -1167,7 +1189,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (phase === 'select' && TUNE.auto && pt > 0.3) throwWithMeter(0.75);
     else if (phase === 'meter' && pt >= 1.0) throwWithMeter(0.2);
     else if (phase === 'windup') {
-      if (!released && pt >= 1.25 * 0.69) release();
+      if (!released && pt >= 1.25 * 0.9) release(); // 保險：正常由下面「手甩到最前面」那一刻放球，這裡只防萬一沒偵測到
     }
     if (phase === 'flight' && pitch) {
       pitch.t += dt;
@@ -1212,6 +1234,23 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (batter) batter.update(dt);
     for (const r of runners) r.actor.update(dt);
     ump.update(dt);
+    // 出手前：球握在投手手裡。一定要放在球員動畫更新之後，不然球會用到上一格的手，慢一格就差十幾公分
+    if (phase === 'windup' && !released) {
+      const hp = pitcherBallPos();
+      if (hp) {
+        ball.visible = true;
+        ball.position.copy(hp);
+        // 出手時機由手的動作決定：手往本壘方向（+Z）甩到最前面、開始往回收的那一格放球，從最前面那個位置飛出去。
+        // 前半段是抬腿、手往後拉，不算（手要先比起始位置往前伸出 0.5 公尺以上才開始判斷）
+        if (!throwTrack) throwTrack = { z0: hp.z, best: hp.clone() };
+        if (hp.z > throwTrack.best.z) throwTrack.best.copy(hp);
+        else if (throwTrack.best.z - throwTrack.z0 > 0.5 && hp.z < throwTrack.best.z - 0.005) {
+          const from = throwTrack.best;
+          throwTrack = null;
+          release(from);
+        }
+      }
+    } else if (throwTrack) throwTrack = null;
     updateWidgets();
   }
 
@@ -1238,6 +1277,14 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     anchors,
     start,
     update,
+    // 除錯量測：球與投手手掌的位置（驗證球有沒有握在手上、有沒有從手裡出去）
+    debugBall: () => {
+      // 用獨立的方式取手的位置（手腕骨本身），不經過 pitcherBallPos，才驗得出球是不是真的在手上
+      const w = pitcher().group.getObjectByName('mixamorigRightHand');
+      const h = w ? w.getWorldPosition(new THREE.Vector3()) : null;
+      // 球也取世界座標（球放在有墊高的群組裡，直接拿 position 比會差一截而看不出來）
+      return { phase, released, visible: ball.visible, ball: ball.getWorldPosition(new THREE.Vector3()).toArray(), hand: h ? h.toArray() : null };
+    },
     liveCam,
     setPaused: (v) => {
       paused = v;

@@ -53,6 +53,33 @@ export function loadPlayerModel(url = '/models/player/player_v7.glb') {
   });
 }
 
+// ── 角色各用各的模型（卡通比例的新球員）：打者、守備員、捕手、裁判四個模型，頭盔、帽子、護具都直接做在身上 ──
+// 載入後 makePlayer 會依角色挑模型，不再用程式另外加頭盔、護具、面罩
+let ROLES = null;
+function loadOne(url) {
+  const keep = SRC;
+  return loadPlayerModel(url).then((src) => {
+    SRC = keep;
+    return src;
+  });
+}
+export async function loadPlayerSet(urls) {
+  const [batter, fielder, catcher, umpire] = await Promise.all([urls.batter, urls.fielder, urls.catcher, urls.umpire].map(loadOne));
+  ROLES = { batter, fielder, catcher, umpire };
+  SRC = fielder;
+  // 這組模型的身體尺寸（靜止姿勢，公尺）：腰帶、領口的高度和背號的位置都和原本的模型不同
+  BODY.belt = 0.94;
+  BODY.collar = 1.47;
+  BACK_RECT.set(-0.15, 1.0, 0.3, 0.3);
+  return ROLES;
+}
+const ROLE_BELT = { batter: 0.98, fielder: 0.95, catcher: 0.9, umpire: 0.9 };
+function roleOf(opts) {
+  if (opts.gear === 'catcher') return 'catcher';
+  if (opts.gear === 'ump') return 'umpire';
+  return opts.helmet ? 'batter' : 'fielder';
+}
+
 // ── 換色：模型只有一張貼圖（米白球衣、深綠配色）。在著色器裡依顏色判斷是哪一種布料，換成球隊的顏色 ──
 // 深綠（帽子、內搭、襪子、滾邊、背號）→ accent；米白（球衣）→ jersey；腰帶以下的米白（褲子）→ pants；膚色乘上膚色係數
 const REF_SKIN = new THREE.Color('#f2c29e');
@@ -180,9 +207,12 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
     uDecal: { value: decal ? 1 : 0 }, // 身體才有背號、髮色、臉部特徵；帽子沒有
     uHair: { value: new THREE.Color(hair || '#1d1a18').convertLinearToSRGB() },
     uBackTex: { value: decal ? backTexture(no, name) : blankTex() },
-    uFaceTex: { value: decal ? faceTexture(look && look.face, hair) : blankTex() },
+    uFaceTex: { value: decal && !ROLES ? faceTexture(look && look.face, hair) : blankTex() }, // 角色模型的臉已經畫好，不另外貼五官
     uBackRect: { value: BACK_RECT },
     uFaceRect: { value: FACE_RECT },
+    uBelt: { value: BODY.belt }, // 腰帶高度：以上是球衣、以下是褲子
+    uCollar: { value: BODY.collar },
+    uFlat: { value: ROLES ? 1 : 0 },
     uFlip: { value: 1 }, // 左打／左投的模型左右鏡射時設為 -1，背上的字才不會跟著反過來
     uGlove: { value: new THREE.Color(GLOVE_COLOR).convertLinearToSRGB() }, // 打擊手套顏色
     uGloveOn: { value: 0 }, // 打者才戴打擊手套（模型頂點顏色 B＝手）
@@ -205,7 +235,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         '#include <common>',
         `#include <common>
         uniform vec3 uAccent; uniform vec3 uJersey; uniform vec3 uPants; uniform vec3 uSkin; uniform vec3 uHair;
-        uniform float uCreamTop; uniform float uDecal; uniform float uFlip;
+        uniform float uCreamTop; uniform float uDecal; uniform float uFlip; uniform float uBelt; uniform float uCollar; uniform float uFlat;
         uniform vec3 uGlove; uniform float uGloveOn; uniform vec3 uBand; uniform float uBandOn;
         uniform sampler2D uBackTex; uniform sampler2D uFaceTex; uniform vec4 uBackRect; uniform vec4 uFaceRect;
         varying vec3 vRest; varying float vRestNz; varying vec3 vRegion;`,
@@ -225,7 +255,14 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float darkPix = 1.0 - smoothstep(0.16, 0.28, lum);
           float cream = uDecal * vRegion.r * (1.0 - green) * (1.0 - darkPix);
           float skin = vRegion.g * (1.0 - smoothstep(0.82, 0.95, ratio) * smoothstep(0.55, 0.75, lum)); // 眼白不跟著膚色變暗
-          vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(${(BODY.belt - 0.01).toFixed(3)}, ${(BODY.belt + 0.01).toFixed(3)}, vRest.y));
+          if (uFlat > 0.5) {
+            // 角色模型（卡通比例）：貼圖是乾淨的純色，直接依每個像素的顏色判斷，不看三角形的區域標記（網格疏，邊緣會成鋸齒）
+            float warm = s.r - s.b; // 米白約 0.1～0.2、膚色約 0.4、純白（護腕、眼白）接近 0
+            green = smoothstep(0.02, 0.07, s.g - max(s.r, s.b));
+            cream = uDecal * (1.0 - green) * smoothstep(0.62, 0.74, lum) * smoothstep(0.03, 0.07, warm) * (1.0 - smoothstep(0.24, 0.3, warm)) * (1.0 - step(uCreamTop, vRest.y));
+            skin = (1.0 - green) * smoothstep(0.28, 0.34, warm) * smoothstep(0.5, 0.62, lum);
+          }
+          vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(uBelt - 0.01, uBelt + 0.01, vRest.y));
           // 背上原本印死的 17：整塊改回球衣布料，再印上這位球員自己的姓名與背號
           vec2 bu = (vRest.xy - uBackRect.xy) / uBackRect.zw;
           float back = uDecal * step(vRestNz, -0.1) * step(0.0, bu.x) * step(bu.x, 1.0) * step(0.0, bu.y) * step(bu.y, 1.0);
@@ -241,7 +278,8 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float ink = texture2D(uBackTex, vec2(uFlip > 0.0 ? 1.0 - bu.x : bu.x, bu.y)).a * back;
           o = mix(o, uAccent * 0.92, ink);
           // 髮色：脖子以上的深色（頭髮、眉毛）
-          float hairM = uDecal * step(${BODY.collar.toFixed(3)}, vRest.y) * (1.0 - smoothstep(0.17, 0.27, lum)) * (1.0 - smoothstep(0.1, 0.2, mx - mn));
+          float hairM = uDecal * step(uCollar, vRest.y) * (1.0 - smoothstep(0.17, 0.27, lum)) * (1.0 - smoothstep(0.1, 0.2, mx - mn));
+          hairM *= 1.0 - uFlat * smoothstep(0.02, 0.07, s.g - max(s.r, s.b)); // 角色模型：深綠色的帽子、頭盔不是頭髮
           o = mix(o, uHair * clamp(0.45 + lum * 5.0, 0.45, 1.7), hairM * 0.85);
           // 臉部特徵：從正面貼上
           vec2 fu = (vRest.xy - uFaceRect.xy) / uFaceRect.zw;
@@ -271,7 +309,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         }`,
       );
   };
-  m.customProgramCacheKey = () => 'player-tint-v10-glove';
+  m.customProgramCacheKey = () => 'player-tint-v11-roles';
   return m;
 }
 
@@ -284,7 +322,9 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
  */
 export function makePlayer(opts) {
   if (!SRC) throw new Error('球員模型尚未載入，請先 await loadPlayerModel()');
-  const inner = cloneSkinned(SRC.scene);
+  const role = ROLES ? roleOf(opts) : null;
+  const src = role ? ROLES[role] : SRC;
+  const inner = cloneSkinned(src.scene);
   const tints = new Map();
   let bat = null;
   inner.traverse((o) => {
@@ -305,7 +345,9 @@ export function makePlayer(opts) {
   });
   const group = new THREE.Group();
   group.add(inner);
-  addGear(inner, opts);
+  // 角色模型：裝備都做在身上，只有守備員的手套還是用程式加（生成的模型手上沒有手套）
+  if (role) addGear(inner, { ...opts, gear: null, helmet: 0, look: {}, glove: role === 'fielder' ? opts.glove : 0 });
+  else addGear(inner, opts);
   // 體型與頭型：整個人的高矮胖瘦用最外層縮放，頭的長寬用頭骨縮放（頭盔、面罩掛在頭骨上會一起變）
   const look = opts.look || {};
   const build = { h: opts.flat ? 1 : look.h || 1, w: opts.flat ? 1 : look.w || 1 };
@@ -319,13 +361,14 @@ export function makePlayer(opts) {
   group.userData.tintU = tints.has('body') ? tints.get('body').userData.u : null;
   if (group.userData.tintU) {
     const u = group.userData.tintU;
-    u.uGloveOn.value = opts.helmet ? 1 : 0; // 打者戴打擊手套
-    u.uBandOn.value = look.band ? 1 : 0; // 護腕：白色或隊色
+    if (role) u.uBelt.value = ROLE_BELT[role] || BODY.belt; // 每個角色模型的腰帶高度不同（Blender 量的）
+    u.uGloveOn.value = opts.helmet && !role ? 1 : 0; // 打者戴打擊手套（角色模型的手套已經做在手上）
+    u.uBandOn.value = look.band && !role ? 1 : 0; // 護腕：白色或隊色
     if (look.band && look.band !== 'white') u.uBand.value.set(opts.accent || '#1f5a4c').convertLinearToSRGB();
   }
   const mixer = new THREE.AnimationMixer(inner);
   const actions = {};
-  for (const [name, clip] of Object.entries(SRC.clips)) actions[name] = mixer.clipAction(clip);
+  for (const [name, clip] of Object.entries(src.clips)) actions[name] = mixer.clipAction(clip);
   actions.idle.play();
   mixer.update(0);
   group.userData.rig = { bat: bat || new THREE.Object3D() };
@@ -397,12 +440,21 @@ function addGear(inner, opts) {
     const glove = new THREE.Group();
     glove.add(part(sphere(), leather, null, [0.095 * k, 0.12 * k, 0.062 * k]));
     glove.add(part(sphere(), leather, [-0.01, 0.03, 0.09 * k], [0.04 * k, 0.068 * k, 0.04 * k]));
-    glove.position.set(0.37, 0.9, -0.03); // 左手掌心再往指尖一點
+    // 手套位置：手腕和中指根的中間（掌心），用骨頭的實際位置算，不同身材的模型都對得上
+    const wrist = bone('handL');
+    const knuckle = inner.getObjectByName('mixamorigLeftHandMiddle1');
+    if (wrist && knuckle) {
+      const a = inner.worldToLocal(wrist.getWorldPosition(new THREE.Vector3()));
+      const b = inner.worldToLocal(knuckle.getWorldPosition(new THREE.Vector3()));
+      glove.position.copy(a.lerp(b, 0.5));
+    } else glove.position.set(0.37, 0.9, -0.03);
     glove.rotation.z = 0.38; // 順著手臂的斜度
     hang('handL', glove);
   }
 
-  if (opts.helmet || catcher || ump) {
+  // 模型本身已經做了頭盔（沒有獨立的帽子網格）時，打者不要再疊一頂程式做的頭盔
+  const bakedHelmet = !inner.getObjectByName('cap');
+  if ((opts.helmet && !(bakedHelmet && !catcher && !ump)) || catcher || ump) {
     const cap = inner.getObjectByName('cap');
     if (cap) cap.visible = false; // 戴頭盔的人不戴帽子
     const shellMat = ump

@@ -138,6 +138,23 @@ bpy.ops.object.datalayout_transfer(modifier="wt")
 bpy.ops.object.modifier_apply(modifier="wt")
 bpy.ops.object.vertex_group_limit_total(group_select_mode="ALL", limit=4)
 bpy.ops.object.vertex_group_normalize_all(group_select_mode="ALL", lock_active=False)
+# 大頭的卡通比例：頭（含帽子、頭盔、面罩）比基礎人體的頭大很多，最近的表面可能落在肩膀或脖子上。
+# 頭骨根部以上的頂點一律只跟著頭骨走，頭才不會在轉頭、聳肩時被拉變形
+if os.environ.get("RIG_BIG_HEAD") == "1":
+    hz = ours["mixamorig:Head"][0].z
+    gh = body.vertex_groups["mixamorig:Head"]
+    nfix = 0
+    for v in body.data.vertices:
+        k = min(1.0, max(0.0, (v.co.z - (hz - 0.02)) / 0.04))
+        if k <= 0:
+            continue
+        for g in v.groups:
+            if g.group != gh.index:
+                g.weight *= 1 - k
+        gh.add([v.index], k, "ADD")
+        nfix += 1
+    bpy.ops.object.vertex_group_normalize_all(group_select_mode="ALL", lock_active=False)
+    print(f"頭部權重固定：{nfix} 個頂點")
 unw = sum(1 for v in body.data.vertices if sum(g.weight for g in v.groups) < 1e-4)
 print(f"轉印完成：群組 {len(body.vertex_groups)}  沒有權重的頂點 {unw}")
 

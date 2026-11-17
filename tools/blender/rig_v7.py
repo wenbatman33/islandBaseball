@@ -56,6 +56,7 @@ print(f"縮放 ×{K:.4f}")
 # ════════ 減面：每人 3.1 萬三角形，全隊 18 人加主審就有 60 萬，還要再畫一次陰影。減到約 1.2 萬 ════════
 # 先合併貼圖接縫上重複的點（網格在接縫處才連得起來，減面時不會裂開），骨頭權重會跟著保留
 TRIS = int(os.environ.get("RIG_TRIS", 12000))
+PRO = os.environ.get("RIG_PRO") == "1"
 for o in scene.objects:
     o.select_set(o is body)
 bpy.context.view_layer.objects.active = body
@@ -100,66 +101,68 @@ def leg_center(z0, z1, side):
     return Vector((xs[len(xs) // 2], (ys[0] + ys[-1]) / 2))
 
 
-for o in scene.objects:
-    o.select_set(o is arm)
-bpy.context.view_layer.objects.active = arm
-bpy.ops.object.mode_set(mode="EDIT")
-ebs = arm.data.edit_bones
-for side, s in ((1, "Left"), (-1, "Right")):
-    j = {}
-    for k, z in LEG_FIX.items():
-        c = leg_center(z - 0.03, z + 0.03, side)
-        j[k] = Vector((c.x, c.y, z))
-    up, lg, ft = ebs[P + s + "UpLeg"], ebs[P + s + "Leg"], ebs[P + s + "Foot"]
-    print(f"{s} 髖 {up.head.z:.3f}→{j['hip'].z:.3f}  膝 {lg.head.z:.3f}→{j['knee'].z:.3f}  踝 {ft.head.z:.3f}→{j['ankle'].z:.3f}")
-    up.head, up.tail = j["hip"], j["knee"]
-    lg.head, lg.tail = j["knee"], j["ankle"]
-    ft.head = j["ankle"]
-bpy.ops.object.mode_set(mode="OBJECT")
+# 正規流程的模型（RIG_PRO=1）：關節已照真人比例對位、權重從基礎人體轉印，不要再搬關節或重算權重
+if not PRO:
+    for o in scene.objects:
+        o.select_set(o is arm)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    ebs = arm.data.edit_bones
+    for side, s in ((1, "Left"), (-1, "Right")):
+        j = {}
+        for k, z in LEG_FIX.items():
+            c = leg_center(z - 0.03, z + 0.03, side)
+            j[k] = Vector((c.x, c.y, z))
+        up, lg, ft = ebs[P + s + "UpLeg"], ebs[P + s + "Leg"], ebs[P + s + "Foot"]
+        print(f"{s} 髖 {up.head.z:.3f}→{j['hip'].z:.3f}  膝 {lg.head.z:.3f}→{j['knee'].z:.3f}  踝 {ft.head.z:.3f}→{j['ankle'].z:.3f}")
+        up.head, up.tail = j["hip"], j["knee"]
+        lg.head, lg.tail = j["knee"], j["ankle"]
+        ft.head = j["ankle"]
+    bpy.ops.object.mode_set(mode="OBJECT")
 
-# 腿部權重：在一份複製的網格上算 Blender 的自動權重（依骨頭位置），只把腿和臀部那些頂點換過來
-LEG_BONES = {P + s + b for s in ("Left", "Right") for b in ("UpLeg", "Leg", "Foot", "ToeBase", "Toe_End")}
-tmp = body.copy()
-tmp.data = body.data.copy()
-scene.collection.objects.link(tmp)
-tmp.modifiers.clear()
-tmp.parent = None
-for g in list(tmp.vertex_groups):
-    tmp.vertex_groups.remove(g)
-for o in scene.objects:
-    o.select_set(o in (tmp, arm))
-bpy.context.view_layer.objects.active = arm
-bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-names_b = {g.index: g.name for g in body.vertex_groups}
-names_t = {g.index: g.name for g in tmp.vertex_groups}
-replaced = 0
-for v, vt in zip(body.data.vertices, tmp.data.vertices):
-    z = (body.matrix_world @ v.co).z
-    if z > LEG_FIX["hip"] + 0.1:
-        continue  # 腰部以上維持 Meshy 的權重
-    auto = {names_t[g.group]: g.weight for g in vt.groups if g.weight > 0.01}
-    if not any(n in LEG_BONES for n in auto):
-        continue  # 這一點不是腿（例如垂在大腿旁的手）
-    # 腰帶附近（髖關節以上）逐漸由原本的權重過渡到新的
-    k = min(1.0, max(0.0, (LEG_FIX["hip"] + 0.1 - z) / 0.12))
-    old = {names_b[g.group]: g.weight for g in v.groups}
-    new = {}
-    for n, w in old.items():
-        new[n] = new.get(n, 0) + w * (1 - k)
-    for n, w in auto.items():
-        new[n] = new.get(n, 0) + w * k
-    tot = sum(new.values()) or 1
-    for g in list(v.groups):
-        body.vertex_groups[names_b[g.group]].remove([v.index])
-    for n, w in new.items():
-        if w / tot < 0.01:
-            continue
-        if n not in body.vertex_groups:
-            body.vertex_groups.new(name=n)
-        body.vertex_groups[n].add([v.index], w / tot, "REPLACE")
-    replaced += 1
-bpy.data.objects.remove(tmp)
-print(f"腿部權重重算：{replaced} 個頂點")
+    # 腿部權重：在一份複製的網格上算 Blender 的自動權重（依骨頭位置），只把腿和臀部那些頂點換過來
+    LEG_BONES = {P + s + b for s in ("Left", "Right") for b in ("UpLeg", "Leg", "Foot", "ToeBase", "Toe_End")}
+    tmp = body.copy()
+    tmp.data = body.data.copy()
+    scene.collection.objects.link(tmp)
+    tmp.modifiers.clear()
+    tmp.parent = None
+    for g in list(tmp.vertex_groups):
+        tmp.vertex_groups.remove(g)
+    for o in scene.objects:
+        o.select_set(o in (tmp, arm))
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+    names_b = {g.index: g.name for g in body.vertex_groups}
+    names_t = {g.index: g.name for g in tmp.vertex_groups}
+    replaced = 0
+    for v, vt in zip(body.data.vertices, tmp.data.vertices):
+        z = (body.matrix_world @ v.co).z
+        if z > LEG_FIX["hip"] + 0.1:
+            continue  # 腰部以上維持 Meshy 的權重
+        auto = {names_t[g.group]: g.weight for g in vt.groups if g.weight > 0.01}
+        if not any(n in LEG_BONES for n in auto):
+            continue  # 這一點不是腿（例如垂在大腿旁的手）
+        # 腰帶附近（髖關節以上）逐漸由原本的權重過渡到新的
+        k = min(1.0, max(0.0, (LEG_FIX["hip"] + 0.1 - z) / 0.12))
+        old = {names_b[g.group]: g.weight for g in v.groups}
+        new = {}
+        for n, w in old.items():
+            new[n] = new.get(n, 0) + w * (1 - k)
+        for n, w in auto.items():
+            new[n] = new.get(n, 0) + w * k
+        tot = sum(new.values()) or 1
+        for g in list(v.groups):
+            body.vertex_groups[names_b[g.group]].remove([v.index])
+        for n, w in new.items():
+            if w / tot < 0.01:
+                continue
+            if n not in body.vertex_groups:
+                body.vertex_groups.new(name=n)
+            body.vertex_groups[n].add([v.index], w / tot, "REPLACE")
+        replaced += 1
+    bpy.data.objects.remove(tmp)
+    print(f"腿部權重重算：{replaced} 個頂點")
 
 
 # 手指權重：Meshy 的手指黏在一起雕，權重也亂（小指第 2、3 節帶到指根、無名指第 3 節帶到手指中段），
@@ -225,7 +228,8 @@ def fix_fingers(blend=0.01):
     print(f"手指權重重算：{count} 個頂點")
 
 
-fix_fingers()
+if not PRO:
+    fix_fingers()
 for o in scene.objects:
     o.select_set(o is arm)
 bpy.context.view_layer.objects.active = arm  # 之後要編輯骨架（加球棒骨頭）
@@ -977,7 +981,8 @@ arm.animation_data.action = None
 for pb in pbs:
     pb.matrix_basis = Matrix.Identity(4)
 bpy.context.view_layer.update()
-cap = split_cap(body, 1.64)
+# 帽子、頭盔直接做在身上的模型（RIG_NO_CAP=1）不切帽子：每種角色各用自己的模型，不需要換帽子
+cap = None if os.environ.get("RIG_NO_CAP") == "1" else split_cap(body, 1.64)
 mark_regions(body)
 
 

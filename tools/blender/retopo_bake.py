@@ -72,6 +72,12 @@ bpy.ops.mesh.select_all(action="SELECT")
 bpy.ops.mesh.fill_holes(sides=12)
 bpy.ops.mesh.normals_make_consistent(inside=False)
 bpy.ops.object.mode_set(mode="OBJECT")
+# 貼回原本的表面：重新佈線會把形狀抹平一點，薄的地方（帽簷、護耳）會陷進後面的臉裡，臉的網格就從頭盔表面穿出來。
+# 把每個頂點吸附到高精細模型上最近的表面，兩層各自回到原位
+sw = low.modifiers.new("sw", "SHRINKWRAP")
+sw.target = hi
+sw.wrap_method = "NEAREST_SURFACEPOINT"
+bpy.ops.object.modifier_apply(modifier="sw")
 for p in low.data.polygons:
     p.use_smooth = True
 nq = sum(1 for p in low.data.polygons if len(p.vertices) == 4)
@@ -122,7 +128,7 @@ lv = np.array([v.co[:] for v in low.data.vertices])
 luv = np.zeros(len(low.data.loops) * 2, dtype=np.float32)
 low.data.uv_layers.active.data.foreach_get("uv", luv)
 luv = luv.reshape(-1, 2)
-px_i, px_j, pos = [], [], []
+px_i, px_j, pos, nrm = [], [], [], []
 for t in low.data.loop_triangles:
     uv = luv[list(t.loops)] * TEX - 0.5  # 像素中心座標
     p3 = lv[list(t.vertices)]
@@ -145,16 +151,27 @@ for t in low.data.loop_triangles:
     px_i.append(gy[inside])
     px_j.append(gx[inside])
     pos.append(w0[inside][:, None] * p3[0] + w1[inside][:, None] * p3[1] + w2[inside][:, None] * p3[2])
-px_i, px_j, pos = np.concatenate(px_i), np.concatenate(px_j), np.concatenate(pos)
+    nrm.append(np.tile(np.array(t.normal[:]), (int(inside.sum()), 1)))
+px_i, px_j, pos, nrm = np.concatenate(px_i), np.concatenate(px_j), np.concatenate(pos), np.concatenate(nrm)
 print(f"取色像素 {len(pos)}")
 from mathutils import Vector  # noqa: E402
 
 near = np.zeros((len(pos), 3))
 tri = np.zeros(len(pos), dtype=np.int64)
+outward = 0
 for n in range(len(pos)):
-    loc, _nor, idx, _d = bvh.find_nearest(Vector(pos[n]))
+    p, d = Vector(pos[n]), Vector(nrm[n])
+    # 先從新網格表面「往外」找：重新佈線會把頭盔與臉、領口與脖子之間的縫隙填平，那些填平的面夾在兩層中間，
+    # 取最近點會取到裡面那層（臉、脖子）。往外 2 公分內如果從背面打到高精細模型的表面，就用外面那層（頭盔、衣領）
+    hit, hn, hidx, _dist = bvh.ray_cast(p - d * 0.001, d, 0.02)
+    if hit is not None and hn.dot(d) > 0.2:
+        near[n], tri[n] = hit, hidx
+        outward += 1
+        continue
+    loc, _nor, idx, _d = bvh.find_nearest(p)
     near[n] = loc
     tri[n] = idx
+print(f"往外取色 {outward} 個像素")
 A, B, C = hv[ht[tri, 0]], hv[ht[tri, 1]], hv[ht[tri, 2]]
 v0, v1, v2 = B - A, C - A, near - A
 d00, d01, d11 = (v0 * v0).sum(1), (v0 * v1).sum(1), (v1 * v1).sum(1)

@@ -78,18 +78,24 @@ def clusters(xs, gap=0.03):
 
 
 def landmarks(P, arm_min_x):
+    AUTO = os.environ.get("FIT_AUTO") == "1" and arm_min_x != 0.27  # 舊模型維持原本的量法
     L = {"top": P[:, 2].max()}
     # 胯下：由下往上，第一個在 x≈0 有點的高度（以下兩腿分開）
-    for z in np.arange(0.5, 1.1, 0.004):
+    for z in np.arange(0.25, 1.1, 0.004):
         b = band(P, z, 0.006)
         if np.sum((np.abs(b[:, 0]) < 0.02) & (np.abs(b[:, 1]) < 0.15)) >= 2:
             L["crotch"] = z
             break
     for s, tag in ((1, "L"), (-1, "R")):
         # 手臂：A 字站姿時 |x| 夠大、又在胯下以上的點只會是手臂
-        A = P[(P[:, 0] * s > arm_min_x) & (P[:, 2] > L["crotch"] - 0.05)]
-        L["tip" + tag] = A[np.argmin(A[:, 2])]  # 指尖＝手臂最低點
-        up = A[A[:, 2] > L["tip" + tag][2] + 0.2]  # 不含手掌
+        A = P[(P[:, 0] * s > arm_min_x) & (P[:, 2] > L["crotch"] - (0.2 if AUTO else 0.05))]
+        if AUTO:  # 指尖＝往外下方最遠的點（手臂張得開的站姿，最低點不一定是指尖）
+            L["tip" + tag] = A[np.argmax(A[:, 0] * s - 0.3 * A[:, 2])]  # 以「往外」為主：護腿、鞋子比手靠內，不會被選到
+            far = np.linalg.norm(A - L["tip" + tag], axis=1)
+            up = A[far > 0.3 * far.max()]
+        else:
+            L["tip" + tag] = A[np.argmin(A[:, 2])]  # 指尖＝手臂最低點
+            up = A[A[:, 2] > L["tip" + tag][2] + 0.2]  # 不含手掌
         c = up.mean(0)
         d = np.linalg.svd(up - c)[2][0]
         L["axis" + tag] = (c, d if d[2] < 0 else -d)
@@ -99,7 +105,30 @@ def landmarks(P, arm_min_x):
     return L
 
 
-LO, LN = landmarks(PO, 0.27), landmarks(PN, 0.30)
+def torso_shape(P):
+    """由上半身的切片量出：脖子（頭和肩膀之間最窄處）、腋下（手臂和軀幹分開的最高處）、腋下高度的軀幹半寬。"""
+    H = P[:, 2].max()
+
+    def central(z):
+        b = band(P, z, 0.015)
+        cl = [c for c in clusters(b[:, 0], 0.045) if len(c) >= 12]
+        return next((c for c in cl if c[0] <= 0 <= c[-1]), None), len(cl)
+    zs = np.arange(0.45 * H, 0.9 * H, 0.004)
+    w = [(z, np.ptp(c)) for z in zs for c, _n in [central(z)] if c is not None]
+    neck = min(w, key=lambda t: t[1])[0]
+    armpit = half = None
+    for z in np.arange(neck, 0.3 * H, -0.004):
+        c, n = central(z)
+        if c is not None and n >= 3:
+            armpit, half = z, max(abs(c[0]), abs(c[-1]))
+            break
+    return neck, armpit, half
+
+
+AUTO = os.environ.get("FIT_AUTO") == "1"  # 依新身體自己的身材量測關節（卡通比例用）；否則用寫實球員的固定數值
+NECK, ARMPIT, HALF = torso_shape(PN)
+print(f"脖子 {NECK:.3f}  腋下 {ARMPIT:.3f}  軀幹半寬 {HALF:.3f}")
+LO, LN = landmarks(PO, 0.27), landmarks(PN, HALF + 0.04 if AUTO else 0.30)
 for k in ("top", "crotch"):
     print(f"{k:8s} 舊 {LO[k]:.3f}  新 {LN[k]:.3f}")
 for t in "LR":
@@ -229,49 +258,116 @@ def setb(n, h, t):
     heads[P_ + n], tails[P_ + n] = np.array(h, float), np.array(t, float)
 
 
-setb("Hips", (0, 0.01, 0.99), (0, 0.01, 1.08))
-setb("Spine", (0, 0.03, 1.08), (0, 0.035, 1.24))
-setb("Spine1", (0, 0.035, 1.24), (0, 0.04, 1.40))
-setb("Spine2", (0, 0.04, 1.40), (0, 0.04, 1.48))
-setb("Neck", (0, 0.03, 1.53), (0, 0.015, 1.66))
-setb("Head", (0, 0.015, 1.66), (0, 0.01, 1.80))
-setb("HeadTop_End", (0, 0.01, 1.88), (0, 0.01, 2.0))
-heads["headfront"], tails["headfront"] = np.array((0, -0.13, 1.66)), np.array((0, -0.13, 1.80))
-for s, w, t in ((1, "Left", "L"), (-1, "Right", "R")):
-    c55, c14 = leg_center(0.55, s), leg_center(0.14, s)
-    hip = (0.105 * s, 0.0, 0.95)
-    knee = (c55[0], c55[1], 0.55)  # 膝：0.285×身高＋鞋底
-    ankle = (c14[0], 0.05, 0.09)  # 腳踝：鞋口下方、偏腳跟
-    ball = (c14[0] + 0.01 * s, -0.07, 0.035)  # 前腳掌：腳長的 70%
-    toe = (c14[0] + 0.012 * s, -0.155, 0.03)
-    setb(w + "UpLeg", hip, knee)
-    setb(w + "Leg", knee, ankle)
-    setb(w + "Foot", ankle, ball)
-    setb(w + "ToeBase", ball, toe)
-    setb(w + "Toe_End", toe, (toe[0], toe[1] - 0.03, toe[2]))
-    # 手臂：肩關節在手臂軸線上 z=1.50 處；肘、腕依真人上臂：前臂：手 ＝ 0.186：0.146：0.108
-    c, d = LN["axis" + t]
-    S = c + d * (1.50 - c[2]) / d[2]
-    S = np.array((0.22 * s, 0.02, 1.50))  # 軸線外插會偏到背後；肩關節固定在肩頂（1.59）下方、身體前後中線
-    F = np.array(LN["tip" + t])
-    E, Wr = S + (F - S) * 0.423, S + (F - S) * 0.755
-    print(f"{w} 肩 {S.round(3)} 肘 {E.round(3)} 腕 {Wr.round(3)} 指尖 {F.round(3)}  膝 {np.round(knee, 3)} 踝 {np.round(ankle, 3)}")
-    setb(w + "Shoulder", (0.03 * s, 0.04, 1.48), S)
-    setb(w + "Arm", S, E)
-    setb(w + "ForeArm", E, Wr)
-    # 手掌與手指：舊的「腕→指尖」座標系對到新的，依手長等比例
-    wo = Vector(old_rest[P_ + w + "Hand"][1])
-    fo = Vector(LO["tip" + t])
-    wn, fn = Vector(Wr), Vector(F)
-    do, xo, yo = frame(wo, fo, t)
-    dn, xn, yn = frame(wn, fn, t)
-    kh = (fn - wn).length / (fo - wo).length
-    for n, (_, h, tl) in old_rest.items():
-        if n.startswith(P_ + w + "Hand"):
-            for src, dst in ((h, heads), (tl, tails)):
-                v = Vector(src) - wo
-                dst[n] = np.array(wn + (dn * v.dot(do) + xn * v.dot(xo) + yn * v.dot(yo)) * kh)
-    heads[P_ + w + "Hand"] = np.array(Wr)
+if AUTO:
+    H = LN["top"]
+    CR = LN["crotch"]
+    yc = lambda z: float(core(PN, z, 0)[1])  # 軀幹前後的中心
+    hipz = CR + 0.15 * (NECK - CR)
+    base = NECK - 0.03  # 脖子根部
+    sp = lambda f: hipz + (base - hipz) * f
+    setb("Hips", (0, yc(hipz), hipz), (0, yc(sp(0.167)), sp(0.167)))
+    setb("Spine", (0, yc(sp(0.167)), sp(0.167)), (0, yc(sp(0.463)), sp(0.463)))
+    setb("Spine1", (0, yc(sp(0.463)), sp(0.463)), (0, yc(sp(0.76)), sp(0.76)))
+    setb("Spine2", (0, yc(sp(0.76)), sp(0.76)), (0, yc(sp(0.9)), sp(0.9)))
+    hy = yc(min(NECK + 0.08, H - 0.05))
+    setb("Neck", (0, yc(base), base), (0, hy, NECK + 0.04))
+    setb("Head", (0, hy, NECK + 0.04), (0, hy, NECK + 0.04 + 0.4 * (H - NECK)))
+    setb("HeadTop_End", (0, hy, H - 0.02), (0, hy, H + 0.1))
+    face = band(PN, NECK + 0.35 * (H - NECK), 0.01)[:, 1].min()
+    heads["headfront"], tails["headfront"] = np.array((0, face, NECK + 0.04)), np.array((0, face, NECK + 0.04 + 0.4 * (H - NECK)))
+    ANK = 0.13 if CR < 0.8 else 0.09
+    for s, w, t in ((1, "Left", "L"), (-1, "Right", "R")):
+        kz = ANK + (CR - ANK) * 0.55
+        ck, ca = leg_center(kz, s), leg_center(ANK + 0.05, s)
+        hip = (ca[0] * 0.25 + ck[0] * 0.5, yc(CR + 0.03), CR + 0.4 * (hipz - CR))
+        knee = (ck[0], ck[1], kz)
+        ankle = (ca[0], ca[1] + 0.02, ANK)
+        f0, f1 = LN["foot" + t]
+        ball = (ca[0], f0[1] + 0.35 * (ankle[1] - f0[1]), 0.04)
+        toe = (ca[0], f0[1] + 0.05, 0.035)
+        setb(w + "UpLeg", hip, knee)
+        setb(w + "Leg", knee, ankle)
+        setb(w + "Foot", ankle, ball)
+        setb(w + "ToeBase", ball, toe)
+        setb(w + "Toe_End", toe, (toe[0], toe[1] - 0.03, toe[2]))
+        # 肩關節：腋下上方、軀幹邊緣內側一點；肘、腕依比例放在肩到指尖的連線上
+        # 手臂中心線：腋下以下每個高度、軀幹外側那一群點的中心，擬合成直線
+        zs_, xs_, ys_ = [], [], []
+        for z in np.arange(max(CR + 0.03, ARMPIT - 0.3), ARMPIT - 0.02, 0.01):
+            bb = band(PN, z, 0.015)
+            bb = bb[bb[:, 0] * s > HALF + 0.03]
+            if len(bb) >= 8:
+                zs_.append(z)
+                xs_.append(bb[:, 0].mean())
+                ys_.append(bb[:, 1].mean())
+        fx, fy = np.polyfit(zs_, xs_, 1), np.polyfit(zs_, ys_, 1)
+        sz = ARMPIT + 0.08
+        S = np.array((np.polyval(fx, sz), np.polyval(fy, sz), sz))
+        if abs(S[0]) < HALF:
+            S[0] = HALF * s
+        F = np.array(LN["tip" + t])
+        E = S + (F - S) * 0.43
+        Wr = S + (F - S) * 0.74
+        print(f"{w} 肩 {S.round(3)} 肘 {E.round(3)} 腕 {Wr.round(3)} 指尖 {F.round(3)}  髖 {np.round(hip, 3)} 膝 {np.round(knee, 3)} 踝 {np.round(ankle, 3)}")
+        setb(w + "Shoulder", (0.03 * s, yc(sp(0.9)), sp(0.9)), S)
+        setb(w + "Arm", S, E)
+        setb(w + "ForeArm", E, Wr)
+        wo = Vector(old_rest[P_ + w + "Hand"][1])
+        fo = Vector(LO["tip" + t])
+        wn, fn = Vector(Wr), Vector(F)
+        do, xo, yo = frame(wo, fo, t)
+        dn, xn, yn = frame(wn, fn, t)
+        kh = (fn - wn).length / (fo - wo).length
+        for n, (_, h, tl) in old_rest.items():
+            if n.startswith(P_ + w + "Hand"):
+                for src, dst in ((h, heads), (tl, tails)):
+                    v = Vector(src) - wo
+                    dst[n] = np.array(wn + (dn * v.dot(do) + xn * v.dot(xo) + yn * v.dot(yo)) * kh)
+        heads[P_ + w + "Hand"] = np.array(Wr)
+else:
+    setb("Hips", (0, 0.01, 0.99), (0, 0.01, 1.08))
+    setb("Spine", (0, 0.03, 1.08), (0, 0.035, 1.24))
+    setb("Spine1", (0, 0.035, 1.24), (0, 0.04, 1.40))
+    setb("Spine2", (0, 0.04, 1.40), (0, 0.04, 1.48))
+    setb("Neck", (0, 0.03, 1.53), (0, 0.015, 1.66))
+    setb("Head", (0, 0.015, 1.66), (0, 0.01, 1.80))
+    setb("HeadTop_End", (0, 0.01, 1.88), (0, 0.01, 2.0))
+    heads["headfront"], tails["headfront"] = np.array((0, -0.13, 1.66)), np.array((0, -0.13, 1.80))
+    for s, w, t in ((1, "Left", "L"), (-1, "Right", "R")):
+        c55, c14 = leg_center(0.55, s), leg_center(0.14, s)
+        hip = (0.105 * s, 0.0, 0.95)
+        knee = (c55[0], c55[1], 0.55)  # 膝：0.285×身高＋鞋底
+        ankle = (c14[0], 0.05, 0.09)  # 腳踝：鞋口下方、偏腳跟
+        ball = (c14[0] + 0.01 * s, -0.07, 0.035)  # 前腳掌：腳長的 70%
+        toe = (c14[0] + 0.012 * s, -0.155, 0.03)
+        setb(w + "UpLeg", hip, knee)
+        setb(w + "Leg", knee, ankle)
+        setb(w + "Foot", ankle, ball)
+        setb(w + "ToeBase", ball, toe)
+        setb(w + "Toe_End", toe, (toe[0], toe[1] - 0.03, toe[2]))
+        # 手臂：肩關節在手臂軸線上 z=1.50 處；肘、腕依真人上臂：前臂：手 ＝ 0.186：0.146：0.108
+        c, d = LN["axis" + t]
+        S = c + d * (1.50 - c[2]) / d[2]
+        S = np.array((0.22 * s, 0.02, 1.50))  # 軸線外插會偏到背後；肩關節固定在肩頂（1.59）下方、身體前後中線
+        F = np.array(LN["tip" + t])
+        E, Wr = S + (F - S) * 0.423, S + (F - S) * 0.755
+        print(f"{w} 肩 {S.round(3)} 肘 {E.round(3)} 腕 {Wr.round(3)} 指尖 {F.round(3)}  膝 {np.round(knee, 3)} 踝 {np.round(ankle, 3)}")
+        setb(w + "Shoulder", (0.03 * s, 0.04, 1.48), S)
+        setb(w + "Arm", S, E)
+        setb(w + "ForeArm", E, Wr)
+        # 手掌與手指：舊的「腕→指尖」座標系對到新的，依手長等比例
+        wo = Vector(old_rest[P_ + w + "Hand"][1])
+        fo = Vector(LO["tip" + t])
+        wn, fn = Vector(Wr), Vector(F)
+        do, xo, yo = frame(wo, fo, t)
+        dn, xn, yn = frame(wn, fn, t)
+        kh = (fn - wn).length / (fo - wo).length
+        for n, (_, h, tl) in old_rest.items():
+            if n.startswith(P_ + w + "Hand"):
+                for src, dst in ((h, heads), (tl, tails)):
+                    v = Vector(src) - wo
+                    dst[n] = np.array(wn + (dn * v.dot(do) + xn * v.dot(xo) + yn * v.dot(yo)) * kh)
+        heads[P_ + w + "Hand"] = np.array(Wr)
 for n, (m, h, t) in old_rest.items():
     e = eb[n]
     hn, tn = Vector(heads[n]), Vector(tails[n])

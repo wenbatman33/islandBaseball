@@ -59,8 +59,10 @@ function nameClips(clips) {
 
 // ── 載入 ──
 const MODELS = [
-  { key: 'batter', label: '寫實球員', url: '/lab/batter_game.glb', x: 0.95 },
-  { key: 'fielder', label: '漫畫風球員', url: '/lab/player_v8_test.glb', x: -0.95 },
+  { key: 'batter', label: '打者', url: '/lab/chibi_batter.glb', x: 2.4 },
+  { key: 'fielder', label: '守備員', url: '/lab/chibi_fielder.glb', x: 0.8 },
+  { key: 'catcher', label: '捕手', url: '/lab/chibi_catcher.glb', x: -0.8 },
+  { key: 'umpire', label: '裁判', url: '/lab/chibi_umpire.glb', x: -2.4 },
 ];
 const loader = new GLTFLoader();
 const actors = [];
@@ -158,11 +160,12 @@ function applyTime() {
 }
 
 const CAMS = {
-  正面: [[0, 1.1, 7.0], [0, 0.95, 0]],
-  斜前: [[3.6, 1.5, 5.0], [0, 0.95, 0]],
-  側面: [[6.2, 1.1, 0], [0, 0.95, 0]],
-  背面: [[0, 1.3, -6.2], [0, 0.95, 0]],
-  近看寫實球員: [[1.8, 1.4, 2.4], [0.95, 1.1, 0]],
+  正面: [[0, 1.1, 11.5], [0, 0.95, 0]],
+  斜前: [[5.5, 1.8, 9.5], [0, 0.95, 0]],
+  側面: [[11.5, 1.1, 0], [0, 0.95, 0]],
+  背面: [[0, 1.3, -11.5], [0, 0.95, 0]],
+  近看打者: [[3.4, 1.5, 3.2], [2.4, 1.1, 0]],
+  近看守備員: [[1.8, 1.5, 3.2], [0.8, 1.1, 0]],
 };
 function setCam(n) {
   camera.position.fromArray(CAMS[n][0]);
