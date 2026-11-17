@@ -3,6 +3,7 @@
 // 頭、頭髮、帽子都用模型本身的造型，不用程式另外捏。帽子是獨立的網格（cap），戴頭盔時藏起來。
 // 下面所有座標都是這個模型靜止姿勢的座標（公尺，Y 朝上、+Z 是臉的方向），量測值見 art/concept_v2/build/rig_v6.json
 import * as THREE from 'three';
+import { BATPOSE, applyBatPose, applySwingAim } from './batpose.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
@@ -55,6 +56,12 @@ export function loadPlayerModel(url = '/models/player/player_v7.glb') {
 // ── 換色：模型只有一張貼圖（米白球衣、深綠配色）。在著色器裡依顏色判斷是哪一種布料，換成球隊的顏色 ──
 // 深綠（帽子、內搭、襪子、滾邊、背號）→ accent；米白（球衣）→ jersey；腰帶以下的米白（褲子）→ pants；膚色乘上膚色係數
 const REF_SKIN = new THREE.Color('#f2c29e');
+const GLOVE_COLOR = '#22252b'; // 打擊手套：深灰黑，各隊通用
+// 靜止姿勢的手肘、手腕位置（Blender 量的，player_v7.glb）：著色器用來畫護腕
+const BAND = {
+  R: [[-0.2537, 1.1893, -0.1046], [-0.3416, 0.9748, -0.0441]],
+  L: [[0.2669, 1.1928, -0.1058], [0.3514, 0.973, -0.0494]],
+};
 // 背號與姓名印在背上的範圍、臉部特徵貼在臉上的範圍（模型靜止姿勢的座標：x0, y0, 寬, 高）
 const BACK_RECT = new THREE.Vector4(-0.15, 1.1, 0.3, 0.29);
 const FACE_RECT = new THREE.Vector4(-0.13, 1.56, 0.26, 0.26);
@@ -177,6 +184,10 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
     uBackRect: { value: BACK_RECT },
     uFaceRect: { value: FACE_RECT },
     uFlip: { value: 1 }, // 左打／左投的模型左右鏡射時設為 -1，背上的字才不會跟著反過來
+    uGlove: { value: new THREE.Color(GLOVE_COLOR).convertLinearToSRGB() }, // 打擊手套顏色
+    uGloveOn: { value: 0 }, // 打者才戴打擊手套（模型頂點顏色 B＝手）
+    uBand: { value: new THREE.Color('#f2efe6').convertLinearToSRGB() }, // 護腕顏色
+    uBandOn: { value: 0 },
   };
   if (skin) {
     const c = new THREE.Color(skin).convertLinearToSRGB();
@@ -195,6 +206,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         `#include <common>
         uniform vec3 uAccent; uniform vec3 uJersey; uniform vec3 uPants; uniform vec3 uSkin; uniform vec3 uHair;
         uniform float uCreamTop; uniform float uDecal; uniform float uFlip;
+        uniform vec3 uGlove; uniform float uGloveOn; uniform vec3 uBand; uniform float uBandOn;
         uniform sampler2D uBackTex; uniform sampler2D uFaceTex; uniform vec4 uBackRect; uniform vec4 uFaceRect;
         varying vec3 vRest; varying float vRestNz; varying vec3 vRegion;`,
       )
@@ -236,11 +248,30 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float face = uDecal * smoothstep(0.05, 0.25, vRestNz) * step(0.0, fu.x) * step(fu.x, 1.0) * step(0.0, fu.y) * step(fu.y, 1.0);
           vec4 fc = texture2D(uFaceTex, fu);
           o = mix(o, fc.rgb, fc.a * face);
+          // 打擊手套與護腕：都用靜止姿勢的位置逐像素算（沿前臂方向離手腕多遠），邊緣是乾淨的一圈，手怎麼轉都貼著皮膚。
+          // 手套：手腕往指尖整隻手；護腕：手腕往前臂 1.2～6.8 公分那一圈，剛好接在手套後面
+          float gl = 0.0;
+          float bd = 0.0;
+          for (int k = 0; k < 2; k++) {
+            vec3 hw = k == 0 ? vec3(${BAND.R[1].join(', ')}) : vec3(${BAND.L[1].join(', ')});
+            vec3 el = k == 0 ? vec3(${BAND.R[0].join(', ')}) : vec3(${BAND.L[0].join(', ')});
+            vec3 ax = normalize(hw - el);
+            vec3 d = vRest - hw;
+            float t = dot(d, ax);
+            float r = length(d - ax * t);
+            gl = max(gl, smoothstep(-0.016, -0.011, t) * (1.0 - smoothstep(0.24, 0.27, length(d))));
+            bd = max(bd, smoothstep(-0.072, -0.066, t) * (1.0 - smoothstep(-0.016, -0.011, t)) * (1.0 - smoothstep(0.07, 0.08, r)));
+          }
+          float notCloth = 1.0 - vRegion.r; // 袖子、褲子不上色
+          gl *= uGloveOn * notCloth;
+          bd *= uBandOn * notCloth;
+          o = mix(o, uBand * clamp(lum / 0.62, 0.7, 1.15), bd);
+          o = mix(o, uGlove * clamp(lum / 0.62, 0.55, 1.25), gl);
           diffuseColor.rgb = pow(clamp(o, 0.0, 1.0), vec3(2.2));
         }`,
       );
   };
-  m.customProgramCacheKey = () => 'player-tint-v6-region';
+  m.customProgramCacheKey = () => 'player-tint-v10-glove';
   return m;
 }
 
@@ -286,6 +317,12 @@ export function makePlayer(opts) {
   }
   group.userData.build = build;
   group.userData.tintU = tints.has('body') ? tints.get('body').userData.u : null;
+  if (group.userData.tintU) {
+    const u = group.userData.tintU;
+    u.uGloveOn.value = opts.helmet ? 1 : 0; // 打者戴打擊手套
+    u.uBandOn.value = look.band ? 1 : 0; // 護腕：白色或隊色
+    if (look.band && look.band !== 'white') u.uBand.value.set(opts.accent || '#1f5a4c').convertLinearToSRGB();
+  }
   const mixer = new THREE.AnimationMixer(inner);
   const actions = {};
   for (const [name, clip] of Object.entries(SRC.clips)) actions[name] = mixer.clipAction(clip);
@@ -463,22 +500,16 @@ function addGear(inner, opts) {
     hang('head', fit(g, [0, 1.236, 0.268], [0, 1.692, 0.082], [0.42, 0.42, 0.75])); // 搬到新模型的眼睛前面
   }
 
-  if (look.band) {
-    // 護腕：戴在手腕上方（'both' 兩手都戴）
-    const bandMat = look.band === 'white' ? gmat('bandW', '#f2efe6', 0.9) : new THREE.MeshStandardMaterial({ color: accent, roughness: 0.9 });
-    const cyl = geo('band6', () => new THREE.CylinderGeometry(0.04, 0.042, 0.055, 16));
-    hang('forearmR', part(cyl, bandMat, [-0.334, 1.02, -0.06], null, [0, 0, -0.376]));
-    hang('forearmL', part(cyl, bandMat, [0.334, 1.02, -0.06], null, [0, 0, 0.376]));
-  }
+  // 護腕改由著色器畫在手腕皮膚上（模型頂點顏色 B＝0.5 那一圈），手轉動時永遠貼合，不再是會翹起來的圓筒
 }
 
 // 單次動作：把「遊戲裡的進度 0–1」對應到動作檔的時間（秒）。
 // 投球：遊戲在進度 0.69 讓球離手，對到動作的出手那一格（第 41 格）。
 // 揮棒：從跨步前開始，進度 0.42 對到擊球那一格（第 25 格）。
-// 第 7 版（Meshy 動作）：投球在 1.25 秒出手；揮棒從 0.55 秒（開始轉身）到 1.0 秒擊球；傳球在 0.5 秒出手
+// 第 7 版：投球（Meshy 動作）在 1.25 秒出手；揮棒（CMU 真人動作捕捉）0.67 秒擊球；傳球在 0.5 秒出手
 const ONE_SHOT = {
   pitch: [[0, 0], [0.69, 1.25], [1, 1.72]],
-  swing: [[0, 0.55], [0.42, 1.0], [1, 1.45]],
+  swing: [[0, 0.45], [0.42, 0.67], [1, 1.13]], // CMU 真人揮棒：0.67 秒擊球
   throw: [[0, 0], [0.5, 0.5], [1, 0.85]],
 };
 const BATTING = new Set(['stance', 'swing']);
@@ -492,6 +523,11 @@ function mapTime(segs, u) {
     }
   }
   return segs[segs.length - 1][1];
+}
+
+function findBatBone(inner) {
+  if (inner.userData.batBone === undefined) inner.userData.batBone = inner.getObjectByName('bat') || null;
+  return inner.userData.batBone;
 }
 
 // 把模型包成可播放姿勢的角色
@@ -565,6 +601,7 @@ export function makeActor(opts) {
         a.u = Math.min(1, a.u + dt / a.dur);
         current.time = mapTime(ONE_SHOT[a.pose] || [[0, 0], [1, current.getClip().duration]], a.u);
         mixer.update(dt);
+        a._tweak();
         if (a.u >= 1) {
           const after = a.after;
           a.dur = 0;
@@ -573,7 +610,32 @@ export function makeActor(opts) {
         }
         return;
       }
-      mixer.update(dt);
+      mixer.update(dt); // 時間照常走：動作之間的淡入淡出才會完成
+      if (BATPOSE.freeze && a.pose === 'stance') {
+        current.time = 0.7; // DEV：定格預備姿勢，方便和參考圖對照
+        mixer.update(0);
+      }
+      a._tweak();
+    },
+    // 打擊姿勢微調層（DEV 面板可即時調整）：預備時整段套用，揮棒剛開始時平順退掉
+    _tweak() {
+      if (!BATTING.has(a.pose)) return;
+      let w = 1;
+      const bat = findBatBone(inner);
+      if (a.pose === 'swing') {
+        const k = Math.max(0, 1 - a.u / 0.25);
+        w = k * k * (3 - 2 * k);
+        // 擊球（u≈0.42）前後讓球棒經過瞄準點的高度：0.18 起漸入、0.5 後漸出
+        const sm = (e0, e1, x) => {
+          const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+          return t * t * (3 - 2 * t);
+        };
+        const wa = sm(0.18, 0.36, a.u) * (1 - sm(0.5, 0.75, a.u));
+        applyBatPose(inner, bat, w);
+        applySwingAim(inner, bat, wa, a.aimY ?? 0.78);
+        return;
+      }
+      applyBatPose(inner, bat, w);
     },
     face(x, z) {
       group.rotation.y = Math.atan2(x - group.position.x, z - group.position.z);

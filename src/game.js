@@ -215,7 +215,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       ...team.kit, skin: p.skin, hair: p.hair, no: p.no, name: p.name, look: p.look, bat: true, helmet: side,
     });
     batter.side = side;
-    batter.group.position.set(-batter.side * 1.0, 0, 0.05);
+    batter.group.position.set(-batter.side * 0.85, 0, 0.05); // 站近本壘板：球棒才掃得過整個本壘板
     batter.group.rotation.y = batter.side * (Math.PI / 2);
     batter.set('stance');
     root.add(batter.group);
@@ -880,9 +880,19 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (!active()) return;
     if (phase === 'select') setPhase('meter');
     else if (phase === 'meter') throwWithMeter();
-    else if (userBatting() && !swing && phase === 'flight') {
-      // 球出手後才算揮棒：投手還沒投就按到，不會浪費掉這一次揮棒
+    else if (userBatting() && !swing && batter) {
+      // 投手還沒出手、或球剛離手還很遠：當成練習揮棒，只做動作、不算好球
+      const practice = phase !== 'flight' || !pitch || pitch.t < pitch.Tf * 0.4;
+      if (practice) {
+        if (['select', 'meter', 'set', 'windup', 'flight'].includes(phase) && batter.pose !== 'swing') {
+          batter.aimY = aim.y;
+          batter.play('swing', 0.34, 'stance');
+          sfx.swing();
+        }
+        return;
+      }
       swing = { at: gt, x: aim.x, y: aim.y };
+      batter.aimY = aim.y; // 揮棒高度跟著瞄準點：低球壓低、高球揮高
       batter.play('swing', 0.34, 'stance');
       sfx.swing();
     }
@@ -998,6 +1008,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       );
       if (aiSwing && aiSwing.type !== 'take' && !pitch.swung && pitch.t >= pitch.Tf - 0.12) {
         pitch.swung = true;
+        batter.aimY = pitch.T.y; // 電腦打者往球的高度揮
         batter.play('swing', 0.34, 'stance');
         sfx.swing();
       }
@@ -1084,6 +1095,9 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       };
       batter.play('swing', 0.34, 'idle');
       startPlay({ ...presets[kind], q: 0.9 });
+    },
+    debugBatter() {
+      return batter; // DEV：打擊姿勢微調用的鏡頭要知道打者在哪
     },
     debugSwitch() {
       if (!started || S.over) return;
