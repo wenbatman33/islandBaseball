@@ -51,6 +51,10 @@ export function initDevTools({ applyLook, setView, views, camera, controls, dire
   fPlay.add(TUNE, 'aimAssist', 0, 1, 0.05).name('瞄準輔助（1=只看時機）').onChange(st);
   fPlay.add(TUNE, 'innings', 1, 9, 1).name('局數').onChange(st);
   fPlay.add(TUNE, 'extra', 0, 3, 1).name('延長賽最多幾局').onChange(st);
+  fPlay.add(TUNE, 'pickWindow', 0.6, 4, 0.1).name('防守選壘時間（秒）').onChange(st);
+  fPlay.add(TUNE, 'slowMo', 0.1, 1, 0.05).name('選壘慢動作倍率').onChange(st);
+  fPlay.add(TUNE, 'throwSpeed', 20, 45, 0.5).name('傳球速度（公尺／秒）').onChange(st);
+  fPlay.add(TUNE, 'pickSize', 0.6, 1.8, 0.05).name('浮動壘包大小').onChange(st);
   fPlay.add(TUNE, 'auto').name('AI 代為操作');
   fPlay.add(TUNE, 'timeScale', 0.25, 8, 0.25).name('時間倍率');
   const playActions = {

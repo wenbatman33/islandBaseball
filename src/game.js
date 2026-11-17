@@ -6,6 +6,7 @@ import { makeActor, FIELD_POS } from './player3d.js';
 import { flight, fieldPlay, resolveOutcome, BASES, SIM_DT } from './ballsim.js';
 import { sfx, sayParts, band } from './audio.js';
 import { line } from './commentary.js';
+import { createBasePicker } from './basepicker.js';
 
 // 好球帶（相對場地高度，單位公尺）
 const ZONE = { x: 0.27, y0: 0.48, y1: 1.08 };
@@ -158,10 +159,13 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   const fld = () => 1 - S.half;
   const userBatting = () => S.half === USER && !TUNE.auto;
   const userPitching = () => S.half !== USER && !TUNE.auto;
+  // 防守傳壘的浮動壘包（手機點、電腦按 1–4）
+  const picker = createBasePicker({ camera, canvas, onPick: (n) => play && play.manual && play.pick && chooseBase(play, n) });
   const pitcher = () => fielders[fld()].P;
   const setPhase = (p) => {
     phase = p;
     pt = 0;
+    if (p !== 'play' && typeof picker !== 'undefined') picker.hide(); // 換階段時收起浮動壘包
   };
   const schedule = (sec, fn) => {
     timer = { t: sec, fn };
@@ -606,6 +610,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     const fp = fl.hr || fl.grd ? null : fieldPlay(fl, list);
     const out = resolveOutcome(fl, fp, { outs: S.outs, on: S.bases.map(Boolean) }, res.la);
     const on = S.bases.map(Boolean);
+    // 我方防守、球被接住或撿起：改成玩家選壘傳球，傳到了才判定出局（一壘手自己踩壘的滾地球照舊）
+    if (userPitching() && fp && !(out.kind === 'GROUND' && out.own)) return startManualPlay(res, fl, fp, out, set);
 
     // 跑者與打者的進壘計畫
     const movers = [];
@@ -677,6 +683,147 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     };
   }
 
+  // ── 玩家選壘傳球 ──
+  // 跑者 m 跑到第 B 個壘包（4＝本壘）的時間
+  function arriveAt(m, B) {
+    return m.start + (m.from === 0 ? 4.3 : 3.9) + Math.max(0, B - m.from - 1) * 3.9;
+  }
+  // 現在從持球的位置傳到 B 壘，會不會比跑者先到（回傳那位跑者，沒機會則 null）
+  function outChance(p, B) {
+    const m = p.movers.find((x) => !x.out && x.from < B && B <= x.to && arriveAt(x, B) > p.t);
+    if (!m) return null;
+    const [bx, bz] = BASES[B % 4];
+    const t1 = p.t + 0.25 + Math.hypot(bx - p.holder.x, bz - p.holder.z) / TUNE.throwSpeed;
+    return t1 + 0.05 < arriveAt(m, B) ? m : null;
+  }
+  function stillRunning(p) {
+    return p.movers.some((m) => !m.out && arriveAt(m, m.to) > p.t);
+  }
+  function startManualPlay(res, fl, fp, out, set) {
+    const movers = [];
+    const mv = (actor, player, from, to, o = {}) => movers.push({ actor, player, from, to, start: 0, ...o });
+    const on = S.bases.map(Boolean);
+    let outsAdd = 0;
+    if (out.kind === 'FLY') {
+      outsAdd = 1;
+      mv(batter, batterInfo, 0, 1, { out: true });
+      if (out.sac) {
+        const r = runners.find((x) => x.base === 3);
+        if (r) mv(r.actor, r.player, 3, 4, { start: fp.t + 0.1, tagUp: true });
+      }
+    } else if (out.kind === 'HIT') {
+      mv(batter, batterInfo, 0, out.bases);
+      for (const r of runners) {
+        const extra = out.outfield && ((out.bases === 1 && r.base >= 2) || (out.bases === 2 && r.base >= 1)) && (S.outs === 2 || Math.random() < 0.55);
+        mv(r.actor, r.player, r.base, Math.min(4, r.base + out.bases + (extra ? 1 : 0)));
+      }
+    } else {
+      // 滾地球：打者跑一壘、被迫進壘的跑者往前一個壘，誰出局看玩家傳哪一壘
+      mv(batter, batterInfo, 0, 1);
+      for (const r of runners) {
+        const forced = r.base === 1 || (r.base === 2 && on[0]) || (r.base === 3 && on[0] && on[1]);
+        if (forced) mv(r.actor, r.player, r.base, r.base + 1);
+      }
+    }
+    if (batter) batter.rig.bat.visible = false;
+    play = {
+      manual: true, set, fl, fp, out, res, movers, throws: [], covers: [], outsAdd, inningOver: S.outs + outsAdd >= 3,
+      tEnd: Math.max(fp.t + 1.2, ...movers.filter((m) => !m.out).map((m) => arriveAt(m, m.to) + 0.6)),
+      t: 0, fielder: set[fp.who], thrower: set[fp.who], popped: false, thrown: 0,
+      holder: { x: fp.point.x, z: fp.point.z }, pick: null, flying: null, noMore: false,
+    };
+  }
+  function openPick(p) {
+    const hints = {};
+    for (const B of [1, 2, 3, 4]) hints[B] = !!outChance(p, B);
+    p.pick = { real: 0, hints };
+    picker.show(hints);
+  }
+  // 時間到沒選：傳到能讓最前面跑者出局的壘包；都沒機會就不傳
+  function autoBase(p) {
+    for (const B of [4, 3, 2, 1]) if (outChance(p, B)) return B;
+    return 0;
+  }
+  function coverActor(p, B) {
+    let pos = B === 1 ? '1B' : B === 2 ? (p.fp.who === 'SS' ? '2B' : 'SS') : B === 3 ? '3B' : 'C';
+    if (p.set[pos] === p.thrower) pos = B === 2 ? '2B' : 'P';
+    return p.set[pos];
+  }
+  function chooseBase(p, B) {
+    picker.hide();
+    p.pick = null;
+    if (!B) {
+      p.noMore = true; // 不傳：把球帶回內野
+      return;
+    }
+    const [bx, bz] = BASES[B % 4];
+    const t0 = p.t + 0.25;
+    const t1 = t0 + Math.hypot(bx - p.holder.x, bz - p.holder.z) / TUNE.throwSpeed;
+    p.flying = { B, t0, t1, from: { ...p.holder }, to: [bx, bz] };
+    p.thrower.face(bx, bz);
+    p.thrower.play('throw', 0.3, 'ready');
+    const c = coverActor(p, B);
+    if (c && !p.covers.some((x) => x.actor === c)) p.covers.push({ actor: c, base: B % 4, by: t1 - 0.05, t0: p.t });
+    p.catcherAt = c;
+    p.tEnd = Math.max(p.tEnd, t1 + 1.0);
+  }
+  const BASE_NAME = { 1: '一壘', 2: '二壘', 3: '三壘', 4: '本壘' };
+  function resolveThrow(p, th) {
+    p.holder = { x: th.to[0], z: th.to[1] };
+    if (p.catcherAt) p.thrower = p.catcherAt;
+    const m = p.movers.find((x) => !x.out && x.from < th.B && th.B <= x.to);
+    if (!m) return;
+    if (arriveAt(m, th.B) > th.t1 - 0.02) {
+      m.out = true;
+      m.to = th.B; // 停在那個壘包
+      m.outAt = p.t;
+      p.outsAdd++;
+      if (m.tagUp) p.out.sac = false;
+      ui.call(`${BASE_NAME[th.B]}出局`, 'strike');
+      sfx.pop();
+      if (S.outs + p.outsAdd >= 3) {
+        p.inningOver = true;
+        p.noMore = true;
+        p.tEnd = Math.min(p.tEnd, p.t + 1.4);
+      }
+    } else ui.call('安全上壘', 'ball');
+  }
+  function manualBall(p, t, rdt) {
+    const { fl, fp } = p;
+    if (t < fp.t) {
+      const s = fl.path[Math.min(fl.path.length - 1, Math.floor(t / SIM_DT))];
+      ball.position.set(s.x, s.y + 0.05, s.z);
+      return;
+    }
+    if (!p.popped) {
+      p.popped = true;
+      sfx.pop();
+      if (fp.caught) p.fielder.set('catchUp');
+    }
+    const th = p.flying;
+    if (th && t >= th.t1) {
+      p.flying = null;
+      resolveThrow(p, th);
+    }
+    if (p.flying && t >= p.flying.t0) {
+      const f = p.flying;
+      const k = (t - f.t0) / (f.t1 - f.t0);
+      const d = Math.hypot(f.to[0] - f.from.x, f.to[1] - f.from.z);
+      ball.position.set(lerp(f.from.x, f.to[0], k), 1.0 + Math.sin(k * Math.PI) * Math.min(2.2, d * 0.05), lerp(f.from.z, f.to[1], k));
+    } else ball.position.set(p.holder.x, 1.0, p.holder.z);
+    // 球在手上、還有跑者在跑：開放選壘（慢動作），時間到自動傳
+    if (!p.flying && !p.pick && !p.noMore && t >= fp.t + 0.12 && stillRunning(p) && S.outs + p.outsAdd < 3) openPick(p);
+    if (p.pick) {
+      p.pick.real += rdt;
+      // 每一幀重算：跑者越來越接近，綠色提示要即時反映「現在傳還來不來得及」
+      const hints = {};
+      for (const B of [1, 2, 3, 4]) hints[B] = !!outChance(p, B);
+      picker.hints(hints);
+      picker.update(1 - p.pick.real / TUNE.pickWindow);
+      if (p.pick.real >= TUNE.pickWindow) chooseBase(p, autoBase(p));
+    }
+  }
+
   function moverPos(m, t) {
     let rem = t - m.start;
     let cur = m.p0;
@@ -696,11 +843,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
 
   function updatePlay(dt) {
     const p = play;
+    const rdt = dt;
+    if (p.manual && p.pick) dt *= TUNE.slowMo; // 選壘時慢動作
     p.t += dt;
     const t = p.t;
     const { fl, fp } = p;
 
     // 球
+    if (p.manual) manualBall(p, t, rdt);
+    else {
     const sample = (tt) => fl.path[Math.min(fl.path.length - 1, Math.floor(tt / SIM_DT))];
     if (!fp || t < fp.t) {
       const s = sample(t);
@@ -734,6 +885,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
         p.thrown++;
       }
     }
+    }
 
     // 接球的守備員
     if (fp) {
@@ -759,7 +911,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     for (const c of p.covers) {
       const h = c.actor.home;
       const b = BASES[c.base];
-      const k = clamp((t - 0.3) / Math.max(0.3, c.by - 0.3), 0, 1);
+      const t0 = c.t0 ?? 0.3;
+      const k = clamp((t - t0) / Math.max(0.3, c.by - t0), 0, 1);
       c.actor.group.position.x = lerp(h[0], b[0], k);
       c.actor.group.position.z = lerp(h[1], b[1], k);
       if (k < 1) {
@@ -782,12 +935,31 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       } else if (t > m.start) m.actor.set('idle');
     }
 
-    if (t >= p.tEnd) finishPlay();
+    if (t >= p.tEnd && !(p.manual && (p.pick || p.flying))) finishPlay();
   }
 
   function finishPlay() {
     const p = play;
     const { out } = p;
+    picker.hide();
+    if (p.manual) {
+      // 玩家選壘後的實際結果
+      const bOut = p.movers.some((m) => m.player === batterInfo && m.out);
+      if (out.kind === 'GROUND' || out.kind === 'DP') {
+        if (bOut) {
+          out.kind = p.outsAdd >= 2 ? 'DP' : 'GROUND';
+          out.text = p.outsAdd >= 2 ? '雙殺打' : '滾地球出局';
+        } else if (p.outsAdd) {
+          out.kind = 'GROUND';
+          out.text = p.outsAdd >= 2 ? '野手選擇・雙殺' : '野手選擇';
+        } else {
+          out.kind = 'HIT';
+          out.bases = 1;
+          out.text = '內野安打';
+        }
+      } else if (out.kind === 'FLY' && p.outsAdd >= 2) out.text += '・雙殺';
+      else if (out.kind === 'HIT' && p.outsAdd) out.text += '（跑者出局）';
+    }
     let runs = 0;
     const b = [null, null, null];
     const next = [];

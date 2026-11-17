@@ -52,13 +52,17 @@ export const TUNE = {
   timing: 0.17, // 揮棒時機寬容度（秒）
   assist: true, // 顯示進壘點預測圈
   aimAssist: 0.5, // 瞄準輔助（0＝完全自己瞄，1＝只看揮棒時機）
+  pickWindow: 1.6, // 防守選壘：可以選的時間（真實秒數），時間到自動傳
+  slowMo: 0.3, // 防守選壘時的慢動作倍率（1＝不放慢）
+  throwSpeed: 32, // 傳球速度（公尺／秒）
+  pickSize: 1, // 浮動壘包按鈕大小
   auto: false, // AI 代為操作（測試用）
   timeScale: 1, // 時間倍率（測試用）
 };
 
 const KEY = 'starridge.tuning.v1';
 const DEFAULTS = JSON.parse(JSON.stringify({ LAYOUT, SHOTS, TUNE }));
-const TUNE_SAVED = ['innings', 'extra', 'speedScale', 'pci', 'timing', 'assist', 'aimAssist'];
+const TUNE_SAVED = ['innings', 'extra', 'speedScale', 'pci', 'timing', 'assist', 'aimAssist', 'pickWindow', 'slowMo', 'throwSpeed', 'pickSize'];
 const pickTune = () => Object.fromEntries(TUNE_SAVED.map((k) => [k, TUNE[k]]));
 
 function merge(target, src) {
