@@ -43,9 +43,11 @@ body[data-mode='live'] .scrim-bottom { opacity: 0.55; }
 .seg.active { display: block; }
 .seg.active .anim, #tags.show .anim { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; animation-delay: calc(var(--i) * 55ms + 120ms); }
 
-.emblem { display: inline-grid; place-items: center; width: 2.1em; height: 2.1em; border-radius: 50%; flex: none;
+.emblem { position: relative; display: inline-grid; place-items: center; width: 2.1em; height: 2.1em; border-radius: 50%; flex: none;
   background: var(--c1); color: var(--c2); border: 0.14em solid var(--c2); font: 700 1em/1 var(--tc); font-style: normal; }
 .emblem.big { font-size: 1.9em; }
+/* 隊徽圖：蓋在隊字圓徽上面，圖載不到時會自己移除、露出隊字 */
+.emblem img { position: absolute; inset: -0.14em; width: calc(100% + 0.28em); height: calc(100% + 0.28em); border-radius: 50%; object-fit: cover; }
 .emblem.sm { font-size: 0.72em; }
 
 .face { position: relative; display: block; flex: none; width: 2.3em; height: 2.3em; border-radius: 0.3em; overflow: hidden;
@@ -453,3 +455,194 @@ body.touch .batter-card { bottom: auto; top: 0.8em; transform-origin: center top
 }
 /* 觸控時「點一下開啟聲音」的提示移到上方，不蓋住下方的操作 */
 body.touch #sound-hint { bottom: auto; top: 38%; }
+
+/* ── 標題畫面：整張主視覺插畫，緩慢推近；右下角是標題字 ── */
+#title-screen { position: fixed; inset: 0; z-index: 70; overflow: hidden; cursor: pointer; background: #0b1a3a; font-family: 'Noto Sans TC', var(--tc);
+  transition: opacity 0.45s, transform 0.45s; }
+#title-screen.out { opacity: 0; transform: scale(1.12); pointer-events: none; }
+#title-screen i { position: absolute; inset: 0; pointer-events: none; }
+.tt-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 28% 50%; transform-origin: 30% 60%; animation: tt-push 16s ease-in-out infinite alternate; }
+@keyframes tt-push { from { transform: scale(1.02); } to { transform: scale(1.13) translate(-1.5%, -1%); } }
+/* 太陽的光暈忽明忽暗 */
+.tt-flare { background: radial-gradient(38% 46% at 92% 4%, rgba(255, 250, 220, 0.75), rgba(255, 240, 180, 0.18) 55%, transparent 72%); mix-blend-mode: screen; animation: tt-flare 3.6s ease-in-out infinite; }
+@keyframes tt-flare { 50% { opacity: 0.55; } }
+/* 飄在空中的塵土 */
+.tt-dust { background:
+    radial-gradient(circle, rgba(255, 236, 200, 0.9) 0 1.5px, transparent 2px) 0 0 / 190px 170px,
+    radial-gradient(circle, rgba(255, 220, 170, 0.7) 0 2.2px, transparent 3px) 60px 40px / 260px 230px,
+    radial-gradient(circle, rgba(255, 255, 255, 0.8) 0 1px, transparent 1.6px) 30px 90px / 130px 150px;
+  animation: tt-dust 9s linear infinite; opacity: 0.8; }
+@keyframes tt-dust { to { background-position: 190px -170px, 320px -190px, 160px -60px; } }
+.tt-shade { background: linear-gradient(transparent 50%, rgba(6, 14, 40, 0.5)), radial-gradient(80% 70% at 78% 78%, rgba(6, 14, 40, 0.42), transparent 70%); }
+.tt-logo { position: absolute; right: 3vw; bottom: 15vh; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 0.6vh; }
+/* 標誌（scripts/gen_logo.mjs 畫的）：從畫面外砸進來，之後輕輕浮動 */
+.tt-mark { width: clamp(300px, 50vw, 820px); height: auto; filter: drop-shadow(0 14px 22px rgba(4, 10, 36, 0.6));
+  animation: tt-slam 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) both, tt-float 3.2s 0.7s ease-in-out infinite alternate; }
+@keyframes tt-slam { 0% { opacity: 0; transform: scale(2.6) rotate(-10deg); } 60% { opacity: 1; transform: scale(0.94) rotate(1deg); } 100% { transform: scale(1); } }
+@keyframes tt-float { to { transform: translateY(-1.2vh) rotate(-0.6deg); } }
+.tt-year { padding: 0.35em 1.1em; font: 900 clamp(0.85rem, 2.3vh, 1.3rem)/1 'Noto Sans TC', var(--tc); letter-spacing: 0.3em; color: #12235a; background: #ffd92e; border: 3px solid #12235a; border-radius: 99px;
+  box-shadow: 4px 4px 0 #12235a; animation: tt-pop 0.5s 0.8s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes tt-pop { from { opacity: 0; scale: 0.3; } }
+.tt-start { position: absolute; left: 50%; bottom: 5.5vh; z-index: 2; translate: -50% 0; white-space: nowrap; padding: 0.6em 2.4em 0.5em; cursor: pointer; font: 900 clamp(1rem, 3vh, 1.6rem)/1 'Noto Sans TC', var(--tc); letter-spacing: 0.3em;
+  color: #12235a; background: #fff; border: 4px solid #12235a; border-radius: 99px; box-shadow: 0 6px 0 #12235a; animation: tt-blink 1.1s ease-in-out infinite; }
+.tt-start small { display: block; margin-top: 0.35em; font: italic 800 0.5em/1 'Barlow Condensed', var(--display); letter-spacing: 0.4em; color: #e8372c; }
+@keyframes tt-blink { 50% { scale: 1.07; box-shadow: 0 6px 0 #12235a, 0 0 0 10px rgba(255, 255, 255, 0.35); } }
+@media (max-width: 700px) {
+  .tt-art { object-position: 24% 50%; }
+  .tt-logo { right: 0; left: 0; bottom: 17vh; }
+  .tt-mark { width: 96vw; }
+}
+
+/* ── 對決畫面：兩隊的故事插畫滿版對撞，中間一道斜切的光；介面和標題畫面同一套（深藍、金、紅的亮面質感）── */
+#team-select, #team-select * { touch-action: manipulation; }
+#team-select { position: fixed; inset: 0; z-index: 60; overflow: hidden; color: #fff; font-family: 'Noto Sans TC', var(--tc); background: #0b1535;
+  --you1: #1f5a4c; --you2: #e9dfc6; --foe1: #3b4a63; --foe2: #d9634a; --cut: 8vw; --navy: #12235a; --deep: #0b1535; --gold: #ffd92e; --hot: #e8372c;
+  transition: opacity 0.35s, transform 0.35s; animation: vs-open 0.4s both; }
+@keyframes vs-open { from { opacity: 0; } }
+#team-select.out { opacity: 0; transform: scale(1.06); pointer-events: none; }
+/* 兩格插畫：滿版、不留邊，中間斜切 */
+.vs-panel { position: absolute; inset: 0; cursor: pointer; }
+.vs-panel.you { clip-path: polygon(0 0, calc(50% + var(--cut)) 0, calc(50% - var(--cut)) 100%, 0 100%); }
+.vs-panel.foe { clip-path: polygon(calc(50% + var(--cut)) 0, 100% 0, 100% 100%, calc(50% - var(--cut)) 100%); }
+.vs-art { position: absolute; inset: 0; overflow: hidden; background: var(--you1); }
+.vs-panel.foe .vs-art { background: var(--foe1); }
+.vs-art img { position: absolute; top: 0; height: 100%; width: calc(50% + var(--cut)); object-fit: cover; object-position: 50% 30%; }
+.vs-panel.you img { left: 0; }
+.vs-panel.foe img { right: 0; scale: -1 1; } /* 插畫都畫成朝右，對手那格左右翻轉，兩邊才會面對面 */
+.vs-art img.in { animation: vs-art-in 0.5s cubic-bezier(0.2, 1.2, 0.4, 1) both, vs-drift 12s 0.5s ease-in-out infinite alternate; }
+@keyframes vs-art-in { from { transform: scale(1.5); filter: brightness(3) saturate(0); } }
+@keyframes vs-drift { from { transform: scale(1); } to { transform: scale(1.09) translateY(-1.5%); } }
+/* 上下用隊色壓暗（不是黑的），字才讀得到，也和插畫的色調接得起來 */
+.vs-art::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(color-mix(in srgb, var(--you1) 45%, rgba(8, 14, 40, 0.78)), transparent 24%, transparent 60%, rgba(8, 14, 40, 0.88) 96%); }
+.vs-panel.foe .vs-art::after { background: linear-gradient(color-mix(in srgb, var(--foe1) 45%, rgba(8, 14, 40, 0.78)), transparent 24%, transparent 60%, rgba(8, 14, 40, 0.88) 96%); }
+/* 斜切的那道光：白芯、金邊、外面一圈光暈 */
+#team-select::before { content: ''; position: absolute; z-index: 2; top: -5%; bottom: -5%; left: 50%; width: 10px; margin-left: -5px; pointer-events: none;
+  transform: rotate(atan2(calc(var(--cut) * 2), 100vh)); background: linear-gradient(90deg, var(--gold), #fff 35%, #fff 65%, var(--gold));
+  box-shadow: 0 0 0 3px var(--navy), 0 0 26px 6px rgba(255, 217, 46, 0.85), 0 0 90px 22px rgba(255, 160, 40, 0.45); animation: vs-flick 1.6s ease-in-out infinite; }
+@keyframes vs-flick { 0%, 100% { opacity: 0.92; } 46% { opacity: 1; } 50% { opacity: 0.6; } 54% { opacity: 1; } }
+
+.vs-top { position: absolute; left: 0; right: 0; top: 0; z-index: 7; display: flex; align-items: center; justify-content: space-between; gap: 1em; padding: 2.4vh 2.4vw; pointer-events: none; }
+.ts-league, .vs-game { padding: 0.5em 1em 0.42em; font: italic 800 clamp(0.8rem, 2vh, 1.05rem)/1 'Barlow Condensed', var(--display); letter-spacing: 0.14em; color: #fff;
+  background: rgba(11, 21, 53, 0.72); border: 2px solid rgba(255, 255, 255, 0.55); border-radius: 99px; backdrop-filter: blur(6px); }
+.ts-league b { color: var(--gold); }
+.vs-title { padding: 0.42em 1.6em 0.4em; font-weight: 900; font-size: clamp(1rem, 2.9vh, 1.55rem); line-height: 1; letter-spacing: 0.34em; text-indent: 0.34em; color: var(--navy);
+  background: linear-gradient(#fff6b0, var(--gold) 45%, #ffb21e); border: 3px solid var(--navy); border-radius: 99px; box-shadow: 0 4px 0 var(--navy), 0 0 24px rgba(255, 217, 46, 0.6); }
+
+/* 兩邊的球隊資訊與台詞 */
+.vs-side { position: absolute; top: 0; bottom: 0; width: 50%; z-index: 3; pointer-events: none; }
+.vs-side.you { left: 0; } .vs-side.foe { right: 0; }
+.vs-info { position: absolute; top: 10vh; max-width: 36vw; display: flex; flex-direction: column; gap: 1.1vh; animation: vs-fade 0.4s 0.1s both; }
+.vs-side.you .vs-info { left: 2.4vw; align-items: flex-start; }
+.vs-side.foe .vs-info { right: 2.4vw; align-items: flex-end; text-align: right; }
+@keyframes vs-fade { from { opacity: 0; transform: translateY(16px); } }
+.vs-tag { padding: 0.42em 1.1em 0.36em; font: italic 800 clamp(0.75rem, 1.9vh, 0.95rem)/1 'Barlow Condensed', var(--display); letter-spacing: 0.16em; color: #fff;
+  background: rgba(11, 21, 53, 0.72); border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 99px; transform: skewX(-10deg); }
+.vs-side.on .vs-tag { color: var(--navy); background: linear-gradient(#fff6b0, var(--gold) 50%, #ffb21e); border-color: var(--navy); box-shadow: 0 0 18px rgba(255, 217, 46, 0.8); }
+.vs-name { display: flex; align-items: center; gap: 0.55em; }
+.vs-side.foe .vs-name { flex-direction: row-reverse; }
+.vs-name .emblem.big { font-size: clamp(1.6rem, 5vh, 2.9rem); border-color: #fff; box-shadow: 0 0 0 3px var(--navy), 0 6px 14px rgba(0, 0, 0, 0.5); }
+.vs-name h2 { margin: 0; font-weight: 900; font-size: clamp(2rem, 8vh, 5rem); line-height: 1.05; letter-spacing: 0.02em; color: #fff; white-space: nowrap; transform: skewX(-7deg);
+  -webkit-text-stroke: clamp(7px, 1.4vh, 12px) var(--navy); paint-order: stroke fill;
+  text-shadow: 0 0.07em 0 var(--navy), 0 0.15em 0 color-mix(in srgb, var(--you1) 80%, #fff 20%), 0 0.22em 0.2em rgba(0, 0, 0, 0.5); }
+.vs-side.foe .vs-name h2 { text-shadow: 0 0.07em 0 var(--navy), 0 0.15em 0 color-mix(in srgb, var(--foe1) 80%, #fff 20%), 0 0.22em 0.2em rgba(0, 0, 0, 0.5); }
+.vs-rec { display: flex; align-items: baseline; gap: 0.9em; padding: 0.28em 1em 0.2em; font-weight: 700; font-size: clamp(0.85rem, 2.1vh, 1.1rem); color: #fff;
+  background: rgba(11, 21, 53, 0.74); border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 12px; backdrop-filter: blur(6px); }
+.vs-rec i { font: italic 800 1em/1 'Barlow Condensed', var(--display); letter-spacing: 0.1em; color: #c9d6ff; }
+.vs-rec i b { font-size: 2em; color: var(--gold); text-shadow: 0 2px 0 var(--navy); }
+/* 台詞：直接壓在插畫上的標語字，不放白框 */
+.vs-line { position: absolute; bottom: 33vh; margin: 0; max-width: min(24vw, 360px); font-weight: 900; font-size: clamp(1.05rem, 3.4vh, 1.9rem); line-height: 1.3; color: var(--gold);
+  -webkit-text-stroke: clamp(5px, 0.9vh, 8px) var(--navy); paint-order: stroke fill; text-shadow: 0 0.1em 0 var(--navy), 0 0.2em 0.3em rgba(0, 0, 0, 0.6); animation: vs-say 0.4s 0.3s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+.vs-side.you .vs-line { left: 2.4vw; transform: rotate(-5deg); }
+.vs-side.foe .vs-line { right: 2.4vw; text-align: right; transform: rotate(5deg); }
+@keyframes vs-say { from { opacity: 0; scale: 0.3; } }
+
+/* 中間的 VS：爆炸框 */
+.vs-mark { position: absolute; left: 50%; top: 42%; z-index: 5; transform: translate(-50%, -50%); pointer-events: none; width: clamp(10rem, 36vh, 20rem); aspect-ratio: 1; display: grid; place-items: center;
+  filter: drop-shadow(0 0 28px rgba(255, 200, 40, 0.75)); }
+.vs-mark::before, .vs-mark::after { content: ''; position: absolute; inset: 0;
+  clip-path: polygon(50% 0, 58% 22%, 75% 6%, 73% 28%, 96% 22%, 82% 41%, 100% 50%, 81% 59%, 95% 79%, 72% 73%, 74% 95%, 58% 79%, 50% 100%, 42% 79%, 25% 95%, 27% 73%, 5% 79%, 19% 59%, 0 50%, 18% 41%, 4% 22%, 27% 28%, 25% 6%, 42% 22%); }
+.vs-mark::before { background: var(--navy); transform: scale(1.1); }
+.vs-mark::after { background: radial-gradient(#fff 18%, #fff3a0 34%, var(--gold) 58%, #ff9a1e 92%); animation: vs-burst 0.5s steps(2) infinite; }
+@keyframes vs-burst { 50% { transform: scale(1.04) rotate(3deg); } }
+.vs-mark b { position: relative; z-index: 1; font: italic 900 clamp(4rem, 17vh, 9.5rem)/0.8 'Barlow Condensed', var(--display); letter-spacing: -0.03em; color: var(--hot); transform: skewX(-8deg) rotate(-6deg);
+  -webkit-text-stroke: 10px var(--navy); paint-order: stroke fill; text-shadow: 0 6px 0 var(--navy), 0 0 0 #fff; }
+.vs-mark.hit { animation: vs-slam 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes vs-slam { 0% { transform: translate(-50%, -50%) scale(3.4) rotate(-14deg); opacity: 0; } 55% { transform: translate(-50%, -50%) scale(0.9) rotate(3deg); opacity: 1; }
+  70% { transform: translate(-51.5%, -49%) scale(1.05); } 85% { transform: translate(-48.5%, -51%) scale(0.98); } 100% { transform: translate(-50%, -50%) scale(1); } }
+
+/* 戰力對照：深藍玻璃面板、金邊 */
+.vs-cmp { position: absolute; left: 50%; bottom: 17.5vh; z-index: 6; width: min(50vw, 640px); transform: translateX(-50%); display: flex; flex-direction: column; gap: 0.55vh;
+  padding: 1.2vh 1.4vw; background: linear-gradient(rgba(24, 40, 96, 0.86), rgba(9, 16, 44, 0.9)); border: 2px solid var(--gold); border-radius: 16px;
+  box-shadow: 0 0 0 3px var(--navy), 0 10px 28px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.35); backdrop-filter: blur(8px); }
+.vs-row { display: grid; grid-template-columns: 6.6em 1fr 4.4em 1fr 6.6em; align-items: center; gap: 0.6em; font-size: clamp(0.72rem, 1.7vh, 0.92rem); }
+.vs-row > b { text-align: center; font-weight: 900; letter-spacing: 0.12em; color: var(--gold); }
+.vs-row em { font-style: normal; font-weight: 900; font-size: 1.05em; color: #9fb0e6; white-space: nowrap; }
+.vs-row em:first-child { text-align: right; }
+.vs-row em.win { color: #fff; text-shadow: 0 0 10px var(--gold); }
+.vs-row span { height: 0.8em; background: rgba(255, 255, 255, 0.14); border-radius: 99px; display: flex; overflow: hidden; }
+.vs-row span.l { justify-content: flex-end; }
+.vs-row span i { display: block; height: 100%; border-radius: 99px; transition: width 0.35s; }
+.vs-row .l i { background: linear-gradient(#ffffff88, transparent 50%), linear-gradient(90deg, var(--you2), color-mix(in srgb, var(--you1) 70%, #fff 30%)); }
+.vs-row .r i { background: linear-gradient(#ffffff88, transparent 50%), linear-gradient(90deg, color-mix(in srgb, var(--foe1) 70%, #fff 30%), var(--foe2)); }
+
+/* 下方：選隊與開賽 */
+.vs-foot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; display: flex; align-items: center; gap: 1.1vw; padding: 1.4vh 2.2vw 2.2vh; }
+.vs-tabs { display: flex; flex-direction: column; gap: 0.7vh; flex: none; }
+.vs-tabs button { padding: 0.6em 1.1em 0.55em; cursor: pointer; font: 900 0.85rem/1 'Noto Sans TC', var(--tc); color: #fff; background: rgba(11, 21, 53, 0.78); border: 2px solid rgba(255, 255, 255, 0.5); border-radius: 99px; }
+.vs-tabs button.on { color: var(--navy); background: linear-gradient(#fff6b0, var(--gold) 50%, #ffb21e); border-color: var(--navy); box-shadow: 0 3px 0 var(--navy), 0 0 16px rgba(255, 217, 46, 0.7); }
+.vs-chips { flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 0.7vw; min-width: 0; }
+.vs-chip { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.2em; padding: 0.6em 0.2em 0.5em; cursor: pointer; color: #fff; font: inherit;
+  border: 3px solid var(--navy); border-radius: 14px; box-shadow: 0 5px 0 var(--navy), 0 8px 16px rgba(0, 0, 0, 0.45); transition: transform 0.12s;
+  background: linear-gradient(rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 46%), linear-gradient(color-mix(in srgb, var(--c1) 82%, #fff 18%), color-mix(in srgb, var(--c1) 78%, #000 22%)); }
+.vs-chip .emblem { border-color: #fff; font-size: clamp(0.9rem, 2.5vh, 1.3rem); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4); }
+.vs-chip:hover { transform: translateY(-5px); }
+.vs-chip b { font-size: 0.9rem; font-weight: 900; letter-spacing: 0.08em; -webkit-text-stroke: 4px var(--navy); paint-order: stroke fill; }
+.vs-chip em { font: italic 800 0.8rem/1 'Barlow Condensed', var(--display); color: #fff; opacity: 0.85; }
+.vs-chip.you, .vs-chip.foe { transform: translateY(-8px); }
+.vs-chip.you { border-color: var(--gold); box-shadow: 0 0 0 3px var(--navy), 0 5px 0 3px var(--navy), 0 0 22px rgba(255, 217, 46, 0.9); }
+.vs-chip.foe { border-color: #ff8a70; box-shadow: 0 0 0 3px var(--navy), 0 5px 0 3px var(--navy), 0 0 22px rgba(255, 110, 80, 0.85); }
+.vs-chip.you::after, .vs-chip.foe::after { position: absolute; top: -1.05em; left: 50%; transform: translateX(-50%); padding: 0.22em 0.8em; font: 900 0.66rem/1.2 'Noto Sans TC', var(--tc); border: 2px solid var(--navy); border-radius: 99px; white-space: nowrap; }
+.vs-chip.you::after { content: '你'; color: var(--navy); background: var(--gold); }
+.vs-chip.foe::after { content: '對手'; color: #fff; background: var(--hot); }
+.vs-go { position: relative; overflow: hidden; flex: none; padding: 0.42em 1.2em 0.36em; cursor: pointer; color: #fff; border: 4px solid var(--navy); border-radius: 18px;
+  background: linear-gradient(rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 48%), linear-gradient(#ff6a3a, var(--hot) 55%, #b81d1d);
+  font: italic 900 clamp(1.4rem, 4.4vh, 2.4rem)/1 'Barlow Condensed', var(--display); letter-spacing: 0.06em; -webkit-text-stroke: 5px var(--navy); paint-order: stroke fill;
+  box-shadow: 0 6px 0 var(--navy), 0 0 30px rgba(255, 90, 50, 0.75); animation: vs-go 0.9s ease-in-out infinite; }
+.vs-go small { display: block; margin-top: 0.15em; font: 900 0.4em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.5em; text-indent: 0.5em; font-style: normal; -webkit-text-stroke: 3px var(--navy); color: var(--gold); }
+.vs-go::after { content: ''; position: absolute; top: -20%; bottom: -20%; left: -40%; width: 26%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.75), transparent); transform: skewX(-20deg); animation: vs-shine 2.2s ease-in-out infinite; }
+@keyframes vs-go { 50% { scale: 1.06; } }
+@keyframes vs-shine { 0%, 55% { left: -40%; } 100% { left: 130%; } }
+
+/* 手機直式：上下對決 */
+@media (max-width: 700px) {
+  #team-select::before { top: 39%; bottom: auto; left: -10%; width: 120%; height: 8px; margin: 0; transform: rotate(-9.5deg); }
+  .vs-panel.you { clip-path: polygon(0 0, 100% 0, 100% 35.5%, 0 43.5%); }
+  .vs-panel.foe { clip-path: polygon(0 43.5%, 100% 35.5%, 100% 100%, 0 100%); }
+  .vs-art img { width: 100%; }
+  .vs-panel.you img { top: 0; height: 45%; }
+  .vs-panel.foe img { top: 34%; height: 45%; }
+  .vs-art::after { background: linear-gradient(color-mix(in srgb, var(--you1) 55%, rgba(8, 14, 40, 0.9)), transparent 16%); }
+  .vs-panel.foe .vs-art::after { background: linear-gradient(transparent 58%, rgba(8, 14, 40, 0.9) 76%); }
+  .vs-top { padding: 1.6vh 4vw; }
+  .vs-title, .vs-game, .vs-line, .vs-rec { display: none; }
+  .vs-side { width: 100%; height: 38%; }
+  .vs-side.you { top: 3vh; } .vs-side.foe { top: 38%; right: 0; bottom: auto; }
+  .vs-info { top: 3.6vh; max-width: 74vw; gap: 0.5vh; }
+  .vs-side.you .vs-info { left: 4vw; } .vs-side.foe .vs-info { right: 4vw; top: auto; bottom: 5vh; }
+  .vs-name .emblem.big { font-size: 1.3rem; }
+  .vs-name h2 { font-size: 1.55rem; -webkit-text-stroke-width: 5px; }
+  .vs-tag { font-size: 0.7rem; }
+  .vs-rec { font-size: 0.8rem; padding: 0.2em 0.7em; }
+  .vs-mark { top: 39.5%; width: 8.5rem; }
+  .vs-mark b { font-size: 4rem; -webkit-text-stroke-width: 7px; }
+  .vs-cmp { display: none; }
+  .vs-foot { flex-wrap: wrap; gap: 1.4vh 2vw; padding: 1.4vh 4vw 2.4vh; background: linear-gradient(rgba(11, 21, 53, 0.9), var(--deep)); border-top: 3px solid var(--gold); }
+  .vs-tabs { flex-direction: row; flex: 1; gap: 2vw; }
+  .vs-tabs button { flex: 1; white-space: nowrap; padding: 0.6em 0.3em; font-size: 0.8rem; }
+  .vs-go { order: 2; font-size: 1.35rem; border-radius: 14px; }
+  .vs-chips { order: 3; flex: none; width: 100%; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2.4vw; }
+  .vs-chip { padding: 0.4em 0.1em 0.3em; gap: 0.1em; border-radius: 10px; }
+  .vs-chip .emblem { font-size: 0.82rem; }
+  .vs-chip b { font-size: 0.8rem; } .vs-chip em { display: none; }
+}

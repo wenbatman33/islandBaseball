@@ -127,14 +127,10 @@ export const sfx = {
   },
 };
 
-// ── 應援：鼓、拍手、照「安打、安打、全壘打」節奏的群眾呼聲（全部合成，沒有真的字） ──
+// ── 應援：應援曲是預先算好的音檔；鼓、拍手、哨音、群眾喊聲是即時合成（安打時的連打、應援段的喊聲用） ──
 let bandOn = true;
 let bandGain = null;
 let bandTimer = null;
-let bandNext = 0;
-let bandStep = 0;
-const BPM = 132;
-const BEAT = 60 / BPM;
 
 function drum(t, strong) {
   const o = ctx.createOscillator();
@@ -194,41 +190,109 @@ function clap(t, level = 1) {
   }
 }
 
-// 16 拍一個循環：前 8 拍鼓加拍手（咚、咚、咚咚咚），後 8 拍照「安打、安打、全壘打」的節奏呼喊兩次
-function bandBar(step, t) {
-  const b = step % 16;
-  const h = BEAT / 2;
-  if (b < 8) {
-    const c = b % 4;
-    drum(t, c === 0);
-    if (c < 2) clap(t, 0.8);
-    else if (c === 2) {
-      clap(t, 0.9);
-      clap(t + h, 0.9);
-      drum(t + h, false);
-    } else clap(t, 1);
-  } else {
-    const c = (b - 8) % 4;
-    drum(t, c === 0);
-    if (c === 0 || c === 1) {
-      shout(t, h * 0.9); // 安
-      shout(t + h, h * 0.9); // 打
-    } else if (c === 2) {
-      shout(t, h * 0.9); // 全
-      shout(t + h, h * 0.9); // 壘
-    } else {
-      shout(t, BEAT * 1.0, 1.25); // 打——
+// 哨音：高音正弦波加一點顫音
+function whistle(t, dur = 0.22) {
+  const o = ctx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(2350, t);
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 34;
+  const lg = ctx.createGain();
+  lg.gain.value = 90;
+  lfo.connect(lg).connect(o.frequency);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.12, t + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(bandGain);
+  o.start(t);
+  lfo.start(t);
+  o.stop(t + dur + 0.03);
+  lfo.stop(t + dur + 0.03);
+}
+
+// ── 應援曲：每隊一首，用真實樂器取樣音色預先算好的音檔（scripts/gen_cheer.mjs）──
+// 一輪 18 小節（72 拍）：主旋律 8 小節 → 再一遍 8 小節 → 鼓加拍手 2 小節，這 2 小節由這裡疊上「安打、安打、全壘打」的喊聲。
+// 音檔帶一點尾音，下一輪照拍子準時接上（兩輪的頭尾會疊在一起），所以循環不會斷
+let songBeat = 60 / 164; // 一拍的長度，換歌時依那首歌的速度更新
+const songs = new Map(); // 檔名 → { buf, lead }；lead＝音檔開頭到第一個聲音的空白（編碼器加的）
+let songFile = null;
+let songNext = 0; // 下一輪開始的時間
+let songSources = [];
+
+async function loadSong(file) {
+  if (songs.has(file)) return songs.get(file);
+  const entry = { buf: null, lead: 0 };
+  songs.set(file, entry);
+  try {
+    const buf = await ctx.decodeAudioData(await (await fetch(file)).arrayBuffer());
+    const d = buf.getChannelData(0);
+    let k = 0;
+    while (k < d.length && Math.abs(d[k]) < 0.02) k++;
+    entry.lead = Math.min(0.2, k / buf.sampleRate);
+    entry.buf = buf;
+  } catch (e) {
+    /* 載不到就沒有應援曲，其餘音效照常 */
+  }
+  return entry;
+}
+
+function stopSong() {
+  const t = ctx.currentTime;
+  songSources.forEach(({ src, g }) => {
+    g.gain.setTargetAtTime(0, t, 0.12);
+    try {
+      src.stop(t + 0.6);
+    } catch (e) {
+      /* 已經播完 */
     }
+  });
+  songSources = [];
+}
+
+// 熱度（0～1）：得點圈有人、兩好球、比賽後段、比數接近時由遊戲調高，應援越大聲、喊聲越多
+let bandHeat = 0;
+let burstUntil = 0;
+const bandLevel = () => 0.3 + bandHeat * 0.16;
+
+function bandTick() {
+  if (!ctx || !bandGain || !songFile) return;
+  const song = songs.get(songFile);
+  if (!song || !song.buf) return;
+  const now = ctx.currentTime;
+  if (songNext < now - 0.05) songNext = now + 0.15; // 剛換歌或分頁被暫停過：從頭開始
+  while (songNext < now + 0.4) {
+    const t = songNext;
+    const src = ctx.createBufferSource();
+    src.buffer = song.buf;
+    const g = ctx.createGain();
+    src.connect(g).connect(bandGain);
+    src.start(t, song.lead);
+    songSources.push({ src, g });
+    if (songSources.length > 3) songSources.shift();
+    // 最後兩小節的喊聲
+    if (bandOn && !muted) {
+      for (let b = 0; b < 8; b++) {
+        const bt = t + (64 + b) * songBeat;
+        const h = songBeat / 2;
+        const k = b % 4;
+        if (k < 3) {
+          shout(bt, h * 0.9, 1.1);
+          shout(bt + h, h * 0.9, 1.1);
+        } else {
+          shout(bt, songBeat, 1.35);
+          if (bandHeat > 0.55) whistle(bt + h);
+        }
+      }
+    }
+    songNext += 72 * songBeat;
   }
 }
 
-function bandTick() {
+function bandApply() {
   if (!ctx || !bandGain) return;
-  while (bandNext < ctx.currentTime + 0.25) {
-    if (bandOn && !muted && bandGain.gain.value > 0.001) bandBar(bandStep, bandNext);
-    bandStep++;
-    bandNext += BEAT;
-  }
+  const boost = ctx.currentTime < burstUntil ? 1.5 : 1;
+  bandGain.gain.setTargetAtTime(band.want && bandOn ? bandLevel() * boost : 0, ctx.currentTime, 0.4);
 }
 
 // 遊戲進入比賽時呼叫 band(true)；回到開場或暫停時 band(false)
@@ -241,12 +305,39 @@ export function band(on) {
     bandGain = ctx.createGain();
     bandGain.gain.value = 0;
     bandGain.connect(crowdBus);
-    bandNext = ctx.currentTime + 0.3;
+    if (songFile) loadSong(songFile);
     bandTimer = setInterval(bandTick, 80);
   }
-  bandGain.gain.setTargetAtTime(on && bandOn ? 0.1 : 0, ctx.currentTime, 0.4);
   band.want = on;
+  bandApply();
 }
+// 換成這支球隊的應援曲（從頭開始）
+band.song = (c) => {
+  if (!c || !c.file || c.file === songFile) return;
+  songFile = c.file;
+  songBeat = 60 / (c.bpm || 164);
+  if (!ctx) return;
+  stopSong();
+  songNext = 0;
+  loadSong(c.file);
+};
+band.heat = (v) => {
+  bandHeat = Math.min(1, Math.max(0, v));
+  bandApply();
+};
+// 安打、全壘打的那一刻：一串連打的鼓、哨音，接著幾秒內應援更大聲
+band.burst = (big) => {
+  if (!ctx || !bandGain || !bandOn || muted || !band.want) return;
+  const t = ctx.currentTime + 0.05;
+  const n = big ? 12 : 6;
+  for (let i = 0; i < n; i++) drum(t + i * 0.085, i % 3 === 0);
+  whistle(t + n * 0.085, 0.3);
+  if (big) whistle(t + n * 0.085 + 0.4, 0.5);
+  for (let i = 0; i < (big ? 4 : 2); i++) shout(t + n * 0.085 + i * 0.32, 0.3, 1.3);
+  burstUntil = ctx.currentTime + (big ? 7 : 4);
+  bandApply();
+  setTimeout(bandApply, (big ? 7 : 4) * 1000 + 50);
+};
 
 // ── 轉播語音：用瀏覽器內建的語音合成唸中文（音質取決於電腦安裝的語音） ──
 let voiceOn = true;
@@ -349,8 +440,7 @@ export function sayParts(parts, important = false, mood = '', tries = 0) {
     return;
   }
   if (!ctx || !parts.every((p) => clips.has(p))) {
-    voiceStatus.fallback++;
-    say(parts.join('，'), important, mood);
+    voiceStatus.fallback++; // 缺音檔就不出聲（不再退回系統語音：機器聲比沒有還糟）
     return;
   }
   const now = ctx.currentTime;

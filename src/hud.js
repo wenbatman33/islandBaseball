@@ -1,3 +1,5 @@
+import { emblemHTML } from './data.js';
+
 // 比賽畫面的 HUD：記分條、投手資訊、打者資訊卡（由比賽狀態即時更新）
 export function buildHud(root) {
   root.insertAdjacentHTML(
@@ -9,7 +11,7 @@ export function buildHud(root) {
   const elBug = root.querySelector('.scorebug');
   const elPit = root.querySelector('.pitcher-chip');
   const elBat = root.querySelector('.batter-card');
-  const chip = (t) => `<i class="emblem sm" style="--c1:${t.c1};--c2:${t.c2}">${t.glyph}</i>`;
+  const chip = (t) => emblemHTML(t, 'sm');
   const dots = (n, on) => Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
 
   function render({ S, away, home, batter, batTeam, order, today, pitcher, fldTeam, pitchCount, lastPitch }) {

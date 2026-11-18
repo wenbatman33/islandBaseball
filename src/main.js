@@ -14,7 +14,8 @@ import './ui.css';
 
 import { LOOK, loadLook } from './look.js';
 import { loadTuning, applyLayout, TUNE } from './tuning.js';
-import { GAME } from './data.js';
+import { GAME, setMatchup } from './data.js';
+import { chooseTeams } from './teamselect.js';
 import { D2R } from './util.js';
 import { buildField } from './field.js';
 import { buildStadium } from './stadium.js';
@@ -184,6 +185,10 @@ async function start() {
   else if (modelKind === 'real') await loadPlayerModel('/lab/batter_pro_game.glb');
   else if (modelKind === 'meshy') await loadPlayerSet(MESHY);
   else await loadPlayerSet(SET, { gloveBaked: true, belt: { batter: 1.03, fielder: 0.97, catcher: 0.92, umpire: 0.93 } });
+
+  // 選隊：選好之後才建立頭像、開場畫面與比賽（這些都是照對戰組合做的）
+  const matchup = await chooseTeams();
+  setMatchup(matchup.away, matchup.home);
 
   // UI
   renderPortraits(GAME);

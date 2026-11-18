@@ -173,7 +173,19 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     timer = { t: sec, fn };
   };
 
+  // 應援熱度：得點圈有人、球數到關鍵、比賽後段、比數接近時，應援節奏加快、聲音變大
+  function bandHeat() {
+    let h = 0;
+    if (S.bases[1] || S.bases[2]) h += 0.4;
+    else if (S.bases[0]) h += 0.15;
+    if (S.strikes === 2 || S.balls === 3) h += 0.2;
+    if (S.inning >= TUNE.innings - 1) h += 0.2;
+    if (Math.abs(S.score[0] - S.score[1]) <= 1) h += 0.2;
+    band.heat(h);
+  }
+
   function refresh() {
+    bandHeat();
     hud.render({
       S, away: teams[0], home: teams[1],
       batter: batterInfo, batTeam: teams[bat()], order: S.batIdx[bat()] + 1,
@@ -234,6 +246,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     S.strikes = 0;
     camMode = 'plate';
     spawnBatter();
+    band.song(teams[bat()].cheer); // 進攻球隊的應援曲
     sayParts(line.batter(S.batIdx[bat()] + 1, batterInfo.pos, batterInfo.name), true);
     resetField();
     lastPitch = '';
@@ -1024,6 +1037,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (runs) addRuns(runs);
     const good = out.kind === 'HIT' || out.kind === 'HR';
     sfx.cheer(out.kind === 'HR' ? 1 : good ? 0.6 : 0.3);
+    if (good) band.burst(out.kind === 'HR');
     const subs = [];
     if (out.kind === 'HR') subs.push(`飛行距離 ${Math.round(p.fl.dist)} 公尺`);
     if (runs) subs.push(`${runs} 分打點`);

@@ -27,4 +27,6 @@ if (existsSync(join(voice, 'manifest.json'))) {
 const lab = join(DIST, 'lab');
 const LAB_KEEP = new Set(['tripo_batter.glb', 'tripo_fielder.glb', 'tripo_catcher.glb', 'tripo_umpire.glb', 'chibi_batter.glb', 'chibi_fielder.glb', 'chibi_catcher.glb', 'chibi_umpire.glb', 'batter_pro_game.glb']);
 if (existsSync(lab)) for (const f of readdirSync(lab)) if (f.endsWith('.glb') && !LAB_KEEP.has(f)) drop(join(lab, f));
+// 應援曲試聽用的音檔（cheer-test.html）不部署
+drop(join(DIST, 'audio', 'cheer', 'samples'));
 console.log(`已從 dist 移除 ${removed} 項不部署的檔案`);

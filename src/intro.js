@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SHOTS } from './tuning.js';
-import { grade } from './data.js';
+import { grade, emblemHTML } from './data.js';
 
 export const SEGS = [
   { key: 'venue', label: '球場' },
@@ -10,8 +10,7 @@ export const SEGS = [
   { key: 'pitcher', label: '先發投手' },
 ];
 
-const emblem = (t, cls = '') =>
-  `<i class="emblem ${cls}" style="--c1:${t.c1};--c2:${t.c2}">${t.glyph}</i>`;
+const emblem = emblemHTML;
 const face = (p, t) =>
   `<span class="face" style="--c1:${t.c1};--c2:${t.c2}"><img src="${p.face}" alt=""></span>`;
 

@@ -34,3 +34,4 @@ export function renderPortraits(game) {
   r.dispose();
   r.forceContextLoss();
 }
+

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>應援曲試聽</title>
+  <style>
+    :root { --bg: #10161b; --card: #19222a; --line: #2c3942; --ink: #f2efe6; --dim: #9fb0ba; --accent: #d6ff3f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 24px 16px 120px; background: var(--bg); color: var(--ink); font: 15px/1.6 "PingFang TC", "Noto Sans TC", sans-serif; }
+    main { max-width: 1100px; margin: 0 auto; }
+    h1 { margin: 0 0 4px; font-size: 26px; letter-spacing: 0.04em; }
+    p.lead { margin: 0 0 20px; color: var(--dim); }
+    h2 { margin: 28px 0 10px; font-size: 17px; }
+    .styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+    .style { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+    .style h3 { margin: 0; font-size: 17px; }
+    .style h3 small { margin-left: 8px; color: var(--dim); font-weight: 400; font-size: 12px; }
+    .style p { margin: 4px 0 10px; color: var(--dim); font-size: 13px; }
+    .teams { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .teams.wide { gap: 10px; }
+    .teams.wide button.play { padding: 16px 8px; font-size: 16px; }
+    button.play small { display: block; color: var(--dim); font-size: 12px; font-weight: 400; }
+    button.play.on small { color: #10161b; }
+    @media (max-width: 640px) { .teams { grid-template-columns: repeat(2, 1fr); } }
+    button.play { padding: 8px 4px; border-radius: 8px; border: 1px solid var(--line); background: #121a20; color: var(--ink); font: inherit; font-size: 13px; cursor: pointer;
+      border-left: 4px solid var(--c1); }
+    button.play:hover { border-color: var(--accent); }
+    button.play.on { background: var(--accent); color: #10161b; font-weight: 700; }
+    .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: #0b1014; border-top: 1px solid var(--line); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+    .bar b { min-width: 220px; }
+    .bar audio { flex: 1; min-width: 240px; height: 36px; }
+    .bar button { padding: 8px 16px; border-radius: 8px; border: 0; background: #26323a; color: var(--ink); font: inherit; cursor: pointer; }
+    .hint { color: var(--dim); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>應援曲試聽</h1>
+    <p class="lead">新版是照「實況野球風」重寫的：旋律全部換掉（多數改小調、加切分音）、配上和弦、鼓改成有推進感的打法。按隊名播放；下面留著上一版讓你對照。</p>
+    <h2>新版（熱血風，每分鐘 164 拍）</h2>
+    <div class="teams wide" id="new"></div>
+    <h2>上一版的實況野球風（對照用）</h2>
+    <div class="teams wide" id="old"></div>
+    <p class="hint">旋律全部是原創。每首一輪約 27 秒：主旋律吹兩遍（第二遍加拍手更熱鬧），最後兩小節是鼓加拍手，遊戲會在那裡疊上全場喊聲。</p>
+  </main>
+  <div class="bar">
+    <b id="now">尚未播放</b>
+    <audio id="player" controls loop></audio>
+    <button id="stop">停止</button>
+  </div>
+  <script type="module">
+    import { TEAMS } from './src/data.js';
+    const player = document.getElementById('player');
+    const now = document.getElementById('now');
+    const btn = (t, src, label) => `<button class="play" style="--c1:${t.c1}" data-src="${src}" data-label="${label}｜${t.name}">${t.name}<small>${t.cheer.minor ? '小調' : '大調'}</small></button>`;
+    document.getElementById('new').innerHTML = TEAMS.map((t) => btn(t, `${t.cheer.file}?v=${Date.now()}`, '新版')).join('');
+    document.getElementById('old').innerHTML = TEAMS.map((t) => btn(t, `audio/cheer/samples/power_${t.id}.m4a`, '上一版')).join('');
+    const clear = () => document.querySelectorAll('.play.on').forEach((x) => x.classList.remove('on'));
+    document.querySelector('main').addEventListener('click', (e) => {
+      const b = e.target.closest('.play');
+      if (!b) return;
+      clear();
+      b.classList.add('on');
+      player.src = b.dataset.src;
+      player.play();
+      now.textContent = b.dataset.label;
+    });
+    document.getElementById('stop').addEventListener('click', () => {
+      player.pause();
+      clear();
+      now.textContent = '尚未播放';
+    });
+  </script>
+</body>
+</html>
