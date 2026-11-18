@@ -56,6 +56,7 @@ export function loadPlayerModel(url = '/models/player/player_v7.glb') {
 // ── 角色各用各的模型（卡通比例的新球員）：打者、守備員、捕手、裁判四個模型，頭盔、帽子、護具都直接做在身上 ──
 // 載入後 makePlayer 會依角色挑模型，不再用程式另外加頭盔、護具、面罩
 let ROLES = null;
+let ROLE_OPT = {};
 function loadOne(url) {
   const keep = SRC;
   return loadPlayerModel(url).then((src) => {
@@ -63,9 +64,10 @@ function loadOne(url) {
     return src;
   });
 }
-export async function loadPlayerSet(urls) {
+export async function loadPlayerSet(urls, opt = {}) {
   const [batter, fielder, catcher, umpire] = await Promise.all([urls.batter, urls.fielder, urls.catcher, urls.umpire].map(loadOne));
   ROLES = { batter, fielder, catcher, umpire };
+  ROLE_OPT = opt; // gloveBaked：守備員的手套已經做在模型上；belt：各角色的腰帶高度
   SRC = fielder;
   // 這組模型的身體尺寸（靜止姿勢，公尺）：腰帶、領口的高度和背號的位置都和原本的模型不同
   BODY.belt = 0.94;
@@ -350,7 +352,7 @@ export function makePlayer(opts) {
   const group = new THREE.Group();
   group.add(inner);
   // 角色模型：裝備都做在身上，只有守備員的手套還是用程式加（生成的模型手上沒有手套）
-  if (role) addGear(inner, { ...opts, gear: null, helmet: 0, look: {}, glove: role === 'fielder' ? opts.glove : 0 });
+  if (role) addGear(inner, { ...opts, gear: null, helmet: 0, look: {}, glove: role === 'fielder' && !ROLE_OPT.gloveBaked ? opts.glove : 0 });
   else addGear(inner, opts);
   // 體型與頭型：整個人的高矮胖瘦用最外層縮放，頭的長寬用頭骨縮放（頭盔、面罩掛在頭骨上會一起變）
   const look = opts.look || {};
@@ -365,7 +367,7 @@ export function makePlayer(opts) {
   group.userData.tintU = tints.has('body') ? tints.get('body').userData.u : null;
   if (group.userData.tintU) {
     const u = group.userData.tintU;
-    if (role) u.uBelt.value = ROLE_BELT[role] || BODY.belt; // 每個角色模型的腰帶高度不同（Blender 量的）
+    if (role) u.uBelt.value = (ROLE_OPT.belt && ROLE_OPT.belt[role]) || ROLE_BELT[role] || BODY.belt; // 每個角色模型的腰帶高度不同（Blender 量的）
     u.uGloveOn.value = opts.helmet && !role ? 1 : 0; // 打者戴打擊手套（角色模型的手套已經做在手上）
     u.uBandOn.value = look.band && !role ? 1 : 0; // 護腕：白色或隊色
     if (look.band && look.band !== 'white') u.uBand.value.set(opts.accent || '#1f5a4c').convertLinearToSRGB();

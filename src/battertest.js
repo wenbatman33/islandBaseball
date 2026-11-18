@@ -11,6 +11,7 @@ const canvas = $('#view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#9aa3ad');
@@ -21,6 +22,10 @@ sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -2 });
 sun.shadow.bias = -0.0004;
+// 面數少的模型（臉、手套）每個面比較大，自己投在自己身上的陰影會沿著面的邊緣變成一塊一塊的。
+// 沿法線方向多推一點再比對陰影，加上柔邊，帽簷投在臉上的影子才是平滑的一片
+sun.shadow.normalBias = 0.035;
+sun.shadow.radius = 5;
 scene.add(sun);
 const rim = new THREE.DirectionalLight('#dfe8ff', 1.2);
 rim.position.set(-4, 4, -5);
@@ -59,10 +64,11 @@ function nameClips(clips) {
 
 // ── 載入 ──
 const MODELS = [
-  { key: 'batter', label: '打者', url: '/lab/chibi_batter.glb', x: 2.4 },
-  { key: 'fielder', label: '守備員', url: '/lab/chibi_fielder.glb', x: 0.8 },
-  { key: 'catcher', label: '捕手', url: '/lab/chibi_catcher.glb', x: -0.8 },
-  { key: 'umpire', label: '裁判', url: '/lab/chibi_umpire.glb', x: -2.4 },
+  { key: 'tripo', label: '守備員（Tripo）', url: '/lab/tripo_fielder.glb', x: 0.9 },
+  { key: 'fielder', label: '守備員（Meshy）', url: '/lab/chibi_fielder.glb', x: -0.9 },
+  { key: 'batter', label: '打者', url: '/lab/chibi_batter.glb', x: 2.7 },
+  { key: 'catcher', label: '捕手', url: '/lab/chibi_catcher.glb', x: -2.7 },
+  { key: 'umpire', label: '裁判', url: '/lab/chibi_umpire.glb', x: -4.5 },
 ];
 const loader = new GLTFLoader();
 const actors = [];
@@ -164,8 +170,8 @@ const CAMS = {
   斜前: [[5.5, 1.8, 9.5], [0, 0.95, 0]],
   側面: [[11.5, 1.1, 0], [0, 0.95, 0]],
   背面: [[0, 1.3, -11.5], [0, 0.95, 0]],
-  近看打者: [[3.4, 1.5, 3.2], [2.4, 1.1, 0]],
-  近看守備員: [[1.8, 1.5, 3.2], [0.8, 1.1, 0]],
+  近看兩個守備員: [[0, 1.4, 5.2], [0, 1.0, 0]],
+  近看Tripo: [[1.7, 1.5, 2.6], [0.9, 1.2, 0]],
 };
 function setCam(n) {
   camera.position.fromArray(CAMS[n][0]);

@@ -174,11 +174,14 @@ async function start() {
   composer.addPass(grade);
 
   // 球員模型要先載入，頭像和場上球員才能建立
-  // 試用新角色：網址加 ?model=chibi 載入卡通比例的四個角色模型；?model=real 是寫實球員（都是測試頁用的模型，尚未正式放進遊戲）
+  // 球員模型：預設是卡通比例的四個角色（守備員是 Tripo 生成並綁好骨架的，手套做在模型上；打者、捕手、裁判是 Meshy 的）。
+  // 網址加 ?model=classic 用原本的漫畫風球員、?model=meshy 守備員改用 Meshy 版（比較用）、?model=real 是寫實球員
   const modelKind = new URLSearchParams(location.search).get('model');
-  if (modelKind === 'chibi') {
-    await loadPlayerSet({ batter: '/lab/chibi_batter.glb', fielder: '/lab/chibi_fielder.glb', catcher: '/lab/chibi_catcher.glb', umpire: '/lab/chibi_umpire.glb' });
-  } else await loadPlayerModel(modelKind === 'real' ? '/lab/batter_pro_game.glb' : undefined);
+  const SET = { batter: '/lab/chibi_batter.glb', fielder: '/lab/tripo_fielder.glb', catcher: '/lab/chibi_catcher.glb', umpire: '/lab/chibi_umpire.glb' };
+  if (modelKind === 'classic') await loadPlayerModel();
+  else if (modelKind === 'real') await loadPlayerModel('/lab/batter_pro_game.glb');
+  else if (modelKind === 'meshy') await loadPlayerSet({ ...SET, fielder: '/lab/chibi_fielder.glb' });
+  else await loadPlayerSet(SET, { gloveBaked: true, belt: { fielder: 0.97 } });
 
   // UI
   renderPortraits(GAME);

@@ -23,8 +23,8 @@ if (existsSync(join(voice, 'manifest.json'))) {
   const used = new Set(Object.values(JSON.parse(readFileSync(join(voice, 'manifest.json'), 'utf8'))));
   for (const f of readdirSync(voice)) if (f.endsWith('.m4a') && !used.has(f)) drop(join(voice, f));
 }
-// 試用模型（public/lab）：只部署網址參數會用到的（?model=chibi 的四個角色、?model=real 的寫實球員），其餘是測試頁的中間檔
+// 試用模型（public/lab）：只部署遊戲會用到的（預設的四個角色、?model=meshy 的守備員、?model=real 的寫實球員），其餘是測試頁的中間檔
 const lab = join(DIST, 'lab');
-const LAB_KEEP = new Set(['chibi_batter.glb', 'chibi_fielder.glb', 'chibi_catcher.glb', 'chibi_umpire.glb', 'batter_pro_game.glb']);
+const LAB_KEEP = new Set(['tripo_fielder.glb', 'chibi_batter.glb', 'chibi_fielder.glb', 'chibi_catcher.glb', 'chibi_umpire.glb', 'batter_pro_game.glb']);
 if (existsSync(lab)) for (const f of readdirSync(lab)) if (f.endsWith('.glb') && !LAB_KEEP.has(f)) drop(join(lab, f));
 console.log(`已從 dist 移除 ${removed} 項不部署的檔案`);
