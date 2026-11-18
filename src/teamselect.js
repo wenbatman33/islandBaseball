@@ -14,7 +14,7 @@ function titleScreen() {
       <img class="tt-art" src="title.jpg" alt="">
       <i class="tt-flare"></i><i class="tt-dust"></i><i class="tt-shade"></i>
       <div class="tt-logo">
-        <img class="tt-mark" src="logo.png" alt="島嶼職棒 ISLAND LEAGUE BASEBALL">
+        <img class="tt-mark" src="logo.webp" alt="島嶼職棒 ISLAND LEAGUE BASEBALL">
         <span class="tt-year">2026　例行賽開打</span>
       </div>
       <button class="tt-start">點一下開始<small>PRESS START</small></button>`;
@@ -51,29 +51,37 @@ function versusScreen() {
     el.innerHTML = `
       <div class="vs-panel you" data-side="home"><div class="vs-art"><img alt=""></div></div>
       <div class="vs-panel foe" data-side="away"><div class="vs-art"><img alt=""></div></div>
-      <header class="vs-top"><span class="ts-league">◆ ISLAND <b>LEAGUE</b></span><span class="vs-title">選擇對戰組合</span><span class="vs-game">例行賽　GAME 22</span></header>
+      <header class="vs-top"><span class="vs-title">選擇對戰組合</span></header>
       <section class="vs-side you" data-side="home"></section>
       <section class="vs-side foe" data-side="away"></section>
-      <div class="vs-mark"><b>VS</b></div>
-      <div class="vs-cmp"></div>
-      <footer class="vs-foot">
-        <div class="vs-tabs"><button data-side="home">你的球隊</button><button data-side="away">對手</button></div>
-        <div class="vs-chips"></div>
-        <button class="vs-go">PLAY BALL<small>開賽</small></button>
-      </footer>`;
+      <div class="vs-mark"><img src="ui/vs.webp" alt="VS"></div>
+      <div class="vs-dock">
+        <div class="vs-cmp"><span class="vs-cmp-title">戰力對決</span><div class="vs-rows"></div></div>
+        <footer class="vs-foot">
+          <div class="vs-tabs"><button data-side="home">你的球隊</button><button data-side="away">對手</button></div>
+          <div class="vs-chips"></div>
+          <button class="vs-go"><img src="ui/playball.webp" alt="PLAY BALL"><small>開賽</small></button>
+        </footer>
+      </div>`;
     document.body.appendChild(el);
 
+    // 每一隊的資訊收成一塊名牌：隊徽、身分、隊名、戰績與整體評價；台詞貼在名牌下面
     const sideHTML = (t, who) => `
-      <div class="vs-info">
-        <span class="vs-tag">${who === 'home' ? 'HOME　你的球隊' : 'AWAY　對手'}</span>
-        <div class="vs-name">${emblemHTML(t, 'big')}<h2>${t.name}</h2></div>
-        <div class="vs-rec">${t.record}<i>OVR <b>${t.ovr}</b></i></div>
+      <div class="vs-plate">
+        ${emblemHTML(t, 'big')}
+        <div class="vs-plate-txt">
+          <span class="vs-role">${who === 'home' ? '你的球隊　HOME' : '對手　AWAY'}</span>
+          <h2>${t.name}</h2>
+          <div class="vs-meta"><span>${t.record}</span><i>OVR<b>${t.ovr}</b></i></div>
+        </div>
       </div>
       <p class="vs-line">「${t.line}」</p>`;
-    const bar = (label, a, b, fa, fb) => {
-      const lo = Math.min(a, b) * 0.86;
-      const w = (v) => Math.max(8, ((v - lo) / (Math.max(a, b) - lo)) * 100);
-      return `<div class="vs-row"><em class="${a >= b ? 'win' : ''}">${fa}</em><span class="l"><i style="width:${w(a)}%"></i></span><b>${label}</b><span class="r"><i style="width:${w(b)}%"></i></span><em class="${b >= a ? 'win' : ''}">${fb}</em></div>`;
+    // 拉鋸條：兩隊在同一條上互推，差距越大推得越過去；交界處有火花。scale＝差多少算壓倒性
+    const bar = (label, a, b, fa, fb, scale) => {
+      const pct = Math.min(86, Math.max(14, 50 + ((a - b) / scale) * 36));
+      return `<div class="vs-row"><em class="l ${a >= b ? 'win' : ''}">${fa}</em>
+        <div class="vs-tug"><i class="l" style="width:${pct}%"></i><i class="r"></i><u style="left:${pct}%"></u><b>${label}</b></div>
+        <em class="r ${b >= a ? 'win' : ''}">${fb}</em></div>`;
     };
     const render = (changed) => {
       const h = team(pick.home);
@@ -93,15 +101,14 @@ function versusScreen() {
         img.classList.add('in');
       }
       el.querySelectorAll('.vs-side, .vs-panel').forEach((s) => s.classList.toggle('on', s.dataset.side === side));
-      el.querySelector('.vs-cmp').innerHTML =
-        bar('整體', h.ovr, a.ovr, h.ovr, a.ovr) +
-        bar('打擊率', +h.teamAvg, +a.teamAvg, h.teamAvg, a.teamAvg) +
-        bar(`王牌`, h.sp.ovr, a.sp.ovr, `${h.sp.name} ${h.sp.ovr}`, `${a.sp.ovr} ${a.sp.name}`) +
-        bar('第四棒', h.lineup[3].ovr, a.lineup[3].ovr, `${h.lineup[3].name} ${h.lineup[3].ovr}`, `${a.lineup[3].ovr} ${a.lineup[3].name}`);
+      el.querySelector('.vs-rows').innerHTML =
+        bar('整體', h.ovr, a.ovr, h.ovr, a.ovr, 10) +
+        bar('打擊', +h.teamAvg, +a.teamAvg, h.teamAvg, a.teamAvg, 0.02) +
+        bar('王牌', h.sp.ovr, a.sp.ovr, h.sp.ovr, a.sp.ovr, 10);
       el.querySelectorAll('.vs-tabs button').forEach((b) => b.classList.toggle('on', b.dataset.side === side));
       el.querySelector('.vs-chips').innerHTML = TEAMS.map((t) => {
         const cls = t.id === pick.home ? 'you' : t.id === pick.away ? 'foe' : '';
-        return `<button class="vs-chip ${cls}" data-id="${t.id}" style="--c1:${t.c1};--c2:${t.c2}">${emblemHTML(t)}<b>${t.short}</b><em>${t.record.replace(' 勝 ', '-').replace(' 敗', '')}</em></button>`;
+        return `<button class="vs-chip ${cls}" data-id="${t.id}" style="--c1:${t.c1};--c2:${t.c2}"><span class="vs-chip-win">${emblemHTML(t)}<em>${t.record.replace(' 勝 ', '-').replace(' 敗', '')}</em></span><b>${t.short}</b></button>`;
       }).join('');
       if (changed) {
         // VS 再撞一次

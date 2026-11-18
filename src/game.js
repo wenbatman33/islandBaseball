@@ -1038,6 +1038,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     const good = out.kind === 'HIT' || out.kind === 'HR';
     sfx.cheer(out.kind === 'HR' ? 1 : good ? 0.6 : 0.3);
     if (good) band.burst(out.kind === 'HR');
+    if (out.kind === 'HR') ui.call('全壘打', 'strike'); // 全壘打的大字美術字
     const subs = [];
     if (out.kind === 'HR') subs.push(`飛行距離 ${Math.round(p.fl.dist)} 公尺`);
     if (runs) subs.push(`${runs} 分打點`);

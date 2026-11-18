@@ -181,11 +181,11 @@ export const TEAMS = [
   },
 ];
 for (const t of TEAMS) {
-  t.emblem = `teams/${t.id}.png`;
+  t.emblem = `teams/${t.id}.webp`;
   t.art = `teams/art/${t.id}.jpg`; // 故事主視覺（scripts/gen_art.mjs）；line 是那張圖的台詞
 }
 
-// 隊徽：有圖用圖（public/teams/<id>.png），圖載不到就露出底下的隊字圓徽
+// 隊徽：有圖用圖（public/teams/<id>.webp），圖載不到就露出底下的隊字圓徽
 export const emblemHTML = (t, cls = '') =>
   `<i class="emblem ${cls}" style="--c1:${t.c1};--c2:${t.c2}">${t.glyph}<img src="${t.emblem}" alt="" onerror="this.remove()"></i>`;
 

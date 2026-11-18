@@ -1,6 +1,9 @@
 import { PITCHES } from './data.js';
 
 // 玩法相關的畫面元件：球種選單、操作提示、判決文字、結果橫幅、終場畫面
+// 判決文字 → 美術字素材
+const CALL_ART = { 好球: 'call_strike', 壞球: 'call_ball', 揮棒落空: 'call_swing', 界外球: 'call_foul', 三振: 'call_k', 保送: 'call_bb', 安全上壘: 'call_safe', 出局: 'call_out', 全壘打: 'call_hr' };
+
 export function buildGameUI(root) {
   root.insertAdjacentHTML(
     'beforeend',
@@ -150,7 +153,13 @@ export function buildGameUI(root) {
       infoTimer = setTimeout(() => elInfo.classList.remove('show'), 1800);
     },
     call(text, kind) {
-      elCall.textContent = text;
+      // 判決用畫好的立體美術字（public/ui/call_*.webp）；「二壘出局」這種前面多一個壘名的，壘名用小字放在上面
+      const art = CALL_ART[text] || (text.endsWith('出局') ? 'call_out' : null);
+      if (art) {
+        const pre = art === 'call_out' && text !== '出局' ? `<small>${text.replace('出局', '')}</small>` : '';
+        elCall.innerHTML = `${pre}<img src="ui/${art}.webp" alt="${text}">`;
+        elCall.querySelector('img').onerror = () => (elCall.textContent = text); // 圖載不到就退回文字
+      } else elCall.textContent = text;
       elCall.dataset.kind = kind;
       retrigger(elCall, 'show');
       clearTimeout(callTimer);
@@ -161,6 +170,7 @@ export function buildGameUI(root) {
       elBanner.querySelector('b').textContent = title;
       elBanner.querySelector('span').textContent = sub || '';
       elBanner.classList.toggle('good', !!good);
+      elBanner.classList.toggle('hr', title === '全壘打');
       retrigger(elBanner, 'show');
       clearTimeout(bannerTimer);
       bannerTimer = setTimeout(() => elBanner.classList.remove('show'), sec * 1000);

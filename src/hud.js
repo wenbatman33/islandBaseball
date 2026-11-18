@@ -4,9 +4,16 @@ import { emblemHTML } from './data.js';
 export function buildHud(root) {
   root.insertAdjacentHTML(
     'beforeend',
-    `<div class="scorebug" data-lay="scorebug"></div>
-     <div class="pitcher-chip" data-lay="pitcherChip"></div>
-     <div class="batter-card" data-lay="batterCard"></div>`,
+    // 外面多包兩層：電腦與手機橫向時這兩層不佔版面（display: contents），三塊各自定位；
+    // 手機直式時變成頂端的一整塊面板（上排記分、下排打者對投手）
+    `<div class="hud-top">
+       <div class="scorebug" data-lay="scorebug"></div>
+       <div class="hud-duel">
+         <div class="batter-card" data-lay="batterCard"></div>
+         <i class="hud-vs">VS</i>
+         <div class="pitcher-chip" data-lay="pitcherChip"></div>
+       </div>
+     </div>`,
   );
   const elBug = root.querySelector('.scorebug');
   const elPit = root.querySelector('.pitcher-chip');

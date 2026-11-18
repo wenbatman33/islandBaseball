@@ -11,6 +11,8 @@ export const SEGS = [
 ];
 
 const emblem = emblemHTML;
+// 段落標題的美術字（public/ui/head_*.webp）；圖載不到就拿掉，留旁邊的小字
+const head = (id, alt) => `<img class="seg-head" src="ui/head_${id}.webp" alt="${alt}" onerror="this.remove()">`;
 const face = (p, t) =>
   `<span class="face" style="--c1:${t.c1};--c2:${t.c2}"><img src="${p.face}" alt=""></span>`;
 
@@ -31,7 +33,7 @@ export function buildIntroDOM(root, tagsRoot, game) {
     </section>`;
 
   const muTeam = (t) => `
-    <div class="mu-team ${t.side.toLowerCase()}">
+    <div class="mu-team ${t.side.toLowerCase()}" style="--c1:${t.c1};--art:url('/${t.art}')">
       ${emblem(t, 'big')}
       <div class="mu-text">
         <small>${t.side} · ${t.sideTc}</small>
@@ -42,10 +44,10 @@ export function buildIntroDOM(root, tagsRoot, game) {
   const matchupHtml = `
     <section class="seg seg-matchup" data-seg="matchup">
       <div class="matchup" data-lay="matchup">
-        <div class="mu-head anim" style="--i:0">GAME ${game.no}<b>${game.title}</b>${game.time} 開打</div>
+        <div class="mu-head anim" style="--i:0">${head('matchup', '今日對戰')}<span>GAME ${game.no}<b>${game.title}</b>${game.time} 開打</span></div>
         <div class="mu-row anim" style="--i:1">
           ${muTeam(away)}
-          <div class="mu-vs">VS</div>
+          <div class="mu-vs"><img src="ui/vs.webp" alt="VS"></div>
           ${muTeam(home)}
         </div>
       </div>
@@ -54,8 +56,8 @@ export function buildIntroDOM(root, tagsRoot, game) {
   const lineupHtml = `
     <section class="seg seg-lineup" data-seg="lineup">
       <div class="panel lineup" data-lay="lineup">
-        <div class="p-kicker anim" style="--i:0">${away.side} · STARTING LINEUP</div>
-        <div class="p-title anim" style="--i:1">${emblem(away)}<h2>${away.name}</h2><span>先發打序</span></div>
+        <div class="p-kicker anim" style="--i:0">${head('lineup', '先發打序')}<span>${away.side} · STARTING LINEUP</span></div>
+        <div class="p-title anim" style="--i:1">${emblem(away)}<h2>${away.name}</h2></div>
         <div class="p-sub anim" style="--i:2">團隊打擊率 <b>${away.teamAvg}</b><i></i>OVR <b>${away.ovr}</b></div>
         <ol class="rows">
           <li class="head anim" style="--i:3"><span></span><span>守位</span><span></span><span>球員</span><span>打擊率</span><span>全壘打</span><span>OVR</span></li>
@@ -81,8 +83,8 @@ export function buildIntroDOM(root, tagsRoot, game) {
   const defenseHtml = `
     <section class="seg seg-defense" data-seg="defense">
       <div class="panel defense-head" data-lay="defenseHead">
-        <div class="p-kicker anim" style="--i:0">${home.side} · DEFENSE</div>
-        <div class="p-title anim" style="--i:1">${emblem(home)}<h2>${home.name}</h2><span>守備陣容</span></div>
+        <div class="p-kicker anim" style="--i:0">${head('defense', '守備陣容')}<span>${home.side} · DEFENSE</span></div>
+        <div class="p-title anim" style="--i:1">${emblem(home)}<h2>${home.name}</h2></div>
         <div class="p-sub anim" style="--i:2">指定打擊 <b>${dh.name}</b><i></i>OVR <b>${home.ovr}</b></div>
       </div>
     </section>`;
@@ -93,7 +95,7 @@ export function buildIntroDOM(root, tagsRoot, game) {
   const pitcherHtml = `
     <section class="seg seg-pitcher" data-seg="pitcher">
       <div class="panel pitcher" data-lay="pitcher">
-        <div class="p-kicker anim" style="--i:0">STARTING PITCHER · 先發投手</div>
+        <div class="p-kicker anim" style="--i:0">${head('pitcher', '先發投手')}<span>STARTING PITCHER</span></div>
         <div class="pt-top anim" style="--i:1">
           <span class="face xl" style="--c1:${home.c1};--c2:${home.c2}"><img src="${sp.face}" alt=""><i>${sp.no}</i></span>
           <div>
