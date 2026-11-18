@@ -4,7 +4,9 @@ import { PITCHES } from './data.js';
 export function buildGameUI(root) {
   root.insertAdjacentHTML(
     'beforeend',
-    `<div class="pitch-menu" data-lay="pitchMenu"></div>
+    `<div class="tc-stick" data-lay="stick"><i></i></div>
+     <button type="button" class="tc-main" data-lay="mainBtn"></button>
+     <div class="pitch-menu" data-lay="pitchMenu"></div>
      <div class="hint" data-lay="hint"></div>
      <div class="bat-help"></div>
      <div class="swing-fb"></div>
@@ -25,6 +27,51 @@ export function buildGameUI(root) {
   const elFinal = root.querySelector('.final');
   const dip = document.getElementById('dip');
   let pick = () => {};
+  // ── 觸控操作（手機）：左下搖桿瞄準、右下主按鈕。網址加 ?touch=1 可在電腦上強制開啟來測試 ──
+  const touchParam = new URLSearchParams(location.search).get('touch');
+  const touch = touchParam === '1' || (touchParam !== '0' && matchMedia('(pointer: coarse)').matches);
+  document.body.classList.toggle('touch', touch);
+  const elStick = root.querySelector('.tc-stick');
+  const elKnob = elStick.querySelector('i');
+  const elMain = root.querySelector('.tc-main');
+  const stick = { x: 0, y: 0, id: null };
+  let mainPress = () => {};
+  const dragging = () => document.body.classList.contains('dev-drag'); // DEV 拖曳版面時不當成操作
+  function stickMove(e) {
+    const r = elStick.getBoundingClientRect();
+    const R = r.width / 2;
+    let dx = (e.clientX - (r.left + R)) / R;
+    let dy = (e.clientY - (r.top + R)) / R;
+    const d = Math.hypot(dx, dy);
+    if (d > 1) {
+      dx /= d;
+      dy /= d;
+    }
+    stick.x = dx;
+    stick.y = -dy; // 往上推是正的
+    elKnob.style.translate = `${dx * 30}% ${dy * 30}%`;
+  }
+  function stickEnd(e) {
+    if (e.pointerId !== stick.id) return;
+    stick.id = null;
+    stick.x = stick.y = 0;
+    elKnob.style.translate = '0 0';
+  }
+  elStick.addEventListener('pointerdown', (e) => {
+    if (dragging()) return;
+    e.preventDefault();
+    stick.id = e.pointerId;
+    elStick.setPointerCapture(e.pointerId);
+    stickMove(e);
+  });
+  elStick.addEventListener('pointermove', (e) => e.pointerId === stick.id && stickMove(e));
+  elStick.addEventListener('pointerup', stickEnd);
+  elStick.addEventListener('pointercancel', stickEnd);
+  elMain.addEventListener('pointerdown', (e) => {
+    if (dragging()) return;
+    e.preventDefault();
+    mainPress();
+  });
   let bannerTimer = 0;
   let callTimer = 0;
   let infoTimer = 0;
@@ -44,8 +91,21 @@ export function buildGameUI(root) {
     onPitchPick(fn) {
       pick = fn;
     },
-    // list 為 null 時隱藏
-    pitchMenu(list, sel) {
+    touch,
+    // 搖桿目前的方向（-1～1；沒在推是 0）
+    stick: () => stick,
+    onMainPress(fn) {
+      mainPress = fn;
+    },
+    // 觸控操作的顯示與主按鈕文字（label 為空字串＝隱藏）
+    touchControls(label) {
+      const show = touch && !!label;
+      elStick.classList.toggle('show', show);
+      elMain.classList.toggle('show', show);
+      if (show && elMain.textContent !== label) elMain.textContent = label;
+    },
+    // list 為 null 時隱藏；maxKmh 有給的話每個球種顯示球速
+    pitchMenu(list, sel, maxKmh) {
       elMenu.classList.toggle('show', !!list);
       if (!list) return;
       elMenu.innerHTML =
@@ -54,7 +114,8 @@ export function buildGameUI(root) {
           .map(([name, g], i) => {
             const d = PITCHES[name];
             const tag = d.speed >= 0.95 ? '速球' : Math.abs(d.by) > 0.3 ? '下墜' : '橫移';
-            return `<div class="pm-row ${i === sel ? 'on' : ''}" data-i="${i}"><kbd>${i + 1}</kbd><b>${name}</b><em>${tag}</em><i class="g g-${g}">${g}</i></div>`;
+            const kmh = maxKmh ? `<small>${Math.round(maxKmh * d.speed)} km/h</small>` : '';
+            return `<div class="pm-row ${i === sel ? 'on' : ''}" data-i="${i}"><kbd>${i + 1}</kbd><b>${name}</b><em>${tag}</em><i class="g g-${g}">${g}</i>${kmh}</div>`;
           })
           .join('');
     },
@@ -67,8 +128,8 @@ export function buildGameUI(root) {
       if (show && !elHelp.innerHTML) {
         elHelp.innerHTML = `
           <div class="bh-title">你的打擊</div>
-          <div class="bh-step"><i>1</i><span><b>移動滑鼠</b>　把<em class="y">黃圈</em>對準<em class="o">橘色落點</em>，對到會變<em class="g">綠色</em></span></div>
-          <div class="bh-step"><i>2</i><span><b>點擊</b> 或 <kbd>空白鍵</kbd>　橘圈縮到最小、變<em class="g">綠色</em>時揮棒</span></div>`;
+          <div class="bh-step"><i>1</i><span><b>${touch ? '推左下搖桿' : '移動滑鼠'}</b>　把<em class="y">黃圈</em>對準<em class="o">橘色落點</em>，對到會變<em class="g">綠色</em></span></div>
+          <div class="bh-step"><i>2</i><span>${touch ? '<b>按右下「揮棒」</b>' : '<b>點擊</b> 或 <kbd>空白鍵</kbd>'}　橘圈縮到最小、變<em class="g">綠色</em>時揮棒</span></div>`;
       }
       elHelp.classList.toggle('show', !!show);
     },

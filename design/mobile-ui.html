@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>島嶼職棒 手機介面設計圖</title>
+<style>
+  :root { --bg:#0f1418; --ink:#eef1f4; --dim:#9aa6b2; --acc:#d8ff3e; --panel:rgba(12,18,22,.82); --line:rgba(255,255,255,.14); --main:#ff8a2a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:'PingFang TC','Noto Sans TC',sans-serif; padding:20px 16px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; letter-spacing:.05em; }
+  .lead { color:var(--dim); font-size:13px; margin:0 0 22px; line-height:1.7; }
+  h2 { font-size:16px; margin:26px 0 8px; }
+  h2 span { color:var(--acc); margin-right:8px; }
+  .wrap { max-width:980px; margin:0 auto; }
+  .phone { position:relative; width:100%; aspect-ratio:19.5/9; border-radius:26px; overflow:hidden; border:3px solid #2a323a; background:#3f8f3a; }
+  .phone svg.field { position:absolute; inset:0; width:100%; height:100%; }
+  .ui { position:absolute; font-weight:600; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; }
+  /* 尺寸用容器寬度的百分比，手機上等比例縮放 */
+  .score { left:2.5%; top:5%; width:24%; height:17%; display:flex; align-items:center; padding:0 2%; gap:6%; font-size:clamp(8px,1.5vw,14px); }
+  .score .t { line-height:1.5; }
+  .score .n { font-size:1.3em; }
+  .count { display:grid; grid-template-columns:auto auto; gap:0 .5em; color:var(--dim); font-size:.8em; }
+  .dot { display:inline-block; width:.6em; height:.6em; border-radius:50%; background:#3a444d; margin-right:.2em; }
+  .dot.on { background:var(--acc); }
+  .card { width:11%; aspect-ratio:1.25; display:flex; flex-direction:column; justify-content:flex-end; padding:1% 1.2%; font-size:clamp(7px,1.2vw,12px); }
+  .card b { font-size:1.5em; position:absolute; left:8%; top:6%; }
+  .card i { font-style:normal; color:var(--dim); font-size:.85em; }
+  .stick { left:4%; bottom:9%; width:15%; aspect-ratio:1; border-radius:50%; background:rgba(12,18,22,.55); border:2px solid rgba(255,255,255,.25); display:grid; place-items:center; }
+  .stick::after { content:''; width:52%; aspect-ratio:1; border-radius:50%; background:#f3f1ea; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  .main { right:3.5%; bottom:8%; width:15%; aspect-ratio:1; border-radius:50%; background:var(--main); color:#1a1206; display:grid; place-items:center; font-size:clamp(10px,2.1vw,20px); letter-spacing:.06em; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+  .sub { width:8%; aspect-ratio:1; border-radius:50%; background:rgba(12,18,22,.72); border:1px solid var(--line); display:grid; place-items:center; font-size:clamp(7px,1.25vw,12px); }
+  .pitches { left:50%; bottom:5%; transform:translateX(-50%); display:flex; gap:.6%; width:38%; }
+  .pitches div { flex:1; padding:3% 4%; font-size:clamp(7px,1.25vw,12px); line-height:1.4; }
+  .pitches div.on { background:#f3f1ea; color:#10161b; border-color:#f3f1ea; }
+  .pitches small { display:block; color:var(--dim); font-size:.82em; font-weight:400; }
+  .pitches .on small { color:#55606b; }
+  .pitches em { float:right; font-style:normal; color:var(--acc); }
+  .pitches .on em { color:#b06a00; }
+  .zone { left:44%; top:44%; width:12%; height:36%; border:2px solid rgba(255,255,255,.75); }
+  .zone::after { content:''; position:absolute; left:38%; top:42%; width:16%; aspect-ratio:1; border-radius:50%; border:2px solid var(--acc); }
+  .meter { left:50%; top:5%; transform:translateX(-50%); width:20%; padding:1% 1.4%; font-size:clamp(7px,1.1vw,11px); text-align:center; color:var(--dim); }
+  .meter i { display:block; height:.7em; margin-top:.4em; border-radius:4px; background:linear-gradient(90deg,#3a444d 0 62%,#58f08a 62% 78%,#ff6b5e 78%); }
+  .pause { right:2.5%; top:5%; padding:1.2% 2%; font-size:clamp(7px,1.2vw,12px); }
+  .diamond { right:3%; bottom:6%; width:24%; aspect-ratio:1; }
+  .diamond .b { position:absolute; width:36%; aspect-ratio:1; border-radius:50%; background:#1c2a55; border:2px solid #e9c46a; display:grid; place-items:center; font-size:clamp(8px,1.6vw,15px); }
+  .diamond .b.mid { background:rgba(12,18,22,.72); border-color:var(--line); color:var(--dim); }
+  .mini { left:2.5%; top:25%; width:17%; aspect-ratio:1.15; }
+  .mini svg { width:100%; height:100%; }
+  .call { left:50%; top:30%; transform:translateX(-50%) skewX(-12deg); background:#e23b54; padding:1.2% 6%; font-size:clamp(11px,2.6vw,24px); letter-spacing:.1em; }
+  .tag { position:absolute; background:var(--acc); color:#10161b; font-size:clamp(7px,1.05vw,11px); padding:.2em .6em; border-radius:5px; font-weight:700; white-space:nowrap; }
+  ul { margin:8px 0 0; padding-left:20px; color:#d6dde4; font-size:13.5px; line-height:1.8; }
+  .note { margin-top:26px; padding:12px 14px; border:1px solid var(--line); border-radius:10px; font-size:13px; line-height:1.8; color:#d6dde4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>島嶼職棒　手機介面設計圖</h1>
+  <p class="lead">手機橫向畫面。原則：操作放在左右兩個下角（拇指搆得到）、資訊放上方、畫面中間留給球場；每個畫面只有一顆最大最亮的主按鈕。黃綠色標籤是說明，不會出現在遊戲裡。這是版面示意，球場是簡化的色塊，不是實際畫面。</p>
+
+  <!-- ══ 投球 ══ -->
+  <h2><span>1</span>投球</h2>
+  <div class="phone">
+    <svg class="field" viewBox="0 0 1950 900" preserveAspectRatio="none">
+      <rect width="1950" height="330" fill="#9fb9cf"/><rect y="300" width="1950" height="60" fill="#22303a"/>
+      <rect y="360" width="1950" height="540" fill="#3f8f3a"/>
+      <path d="M0 900 L700 470 L1250 470 L1950 900 Z" fill="#b5673a"/>
+      <path d="M560 900 L860 620 L1090 620 L1390 900 Z" fill="#3f8f3a"/>
+      <ellipse cx="975" cy="470" rx="150" ry="28" fill="#b5673a"/>
+      <circle cx="975" cy="400" r="34" fill="#f3f1ea"/><rect x="950" y="430" width="50" height="70" rx="12" fill="#f3f1ea"/>
+      <circle cx="1280" cy="520" r="70" fill="#e2573d"/><rect x="1230" y="585" width="110" height="250" rx="30" fill="#273a66"/>
+    </svg>
+    <div class="ui panel score"><div class="t">鯨浪 <span class="n">0</span><br>雲豹 <span class="n">0</span></div><div><div>1 局上</div><div class="count"><span>B</span><span><i class="dot on"></i><i class="dot"></i><i class="dot"></i></span><span>S</span><span><i class="dot on"></i><i class="dot"></i></span><span>O</span><span><i class="dot"></i><i class="dot"></i></span></div></div></div>
+    <div class="ui panel card" style="left:2.5%;top:25%"><b>17</b><span>駱以辰</span><i>投手・右投</i></div>
+    <div class="ui panel card" style="right:2.5%;top:25%"><b>7</b><span>高承澔</span><i>中外野・左打</i></div>
+    <div class="ui panel meter">控球<i></i></div>
+    <div class="ui panel pause">暫停</div>
+    <div class="ui zone"></div>
+    <div class="ui stick"></div>
+    <div class="ui main">投球</div>
+    <div class="ui sub" style="right:20%;bottom:8%">換球種</div>
+    <div class="ui sub" style="right:20%;bottom:27%">故意四壞</div>
+    <div class="ui pitches">
+      <div class="panel on">四縫線<em>A</em><small>146 km/h</small></div>
+      <div class="panel">滑球<em>B</em><small>131 km/h</small></div>
+      <div class="panel">指叉球<em>B</em><small>128 km/h</small></div>
+      <div class="panel">曲球<em>C</em><small>118 km/h</small></div>
+    </div>
+    <div class="tag" style="left:4%;bottom:35%">搖桿：瞄準進壘點</div>
+    <div class="tag" style="right:3.5%;bottom:37%">主按鈕：按一下開始、再按一下定時機</div>
+    <div class="tag" style="left:50%;bottom:22%;transform:translateX(-50%)">球種：點選，或用「換球種」輪流切換</div>
+  </div>
+  <ul>
+    <li>左手拇指推搖桿移動好球帶裡的準星，手指不會擋到好球帶。</li>
+    <li>右手拇指按「投球」：第一下開始縮圈，第二下決定時機，和現在的玩法相同。</li>
+    <li>球種從右側直排改成下方橫排，每格顯示球種、球速、拿手程度。</li>
+  </ul>
+
+  <!-- ══ 打擊 ══ -->
+  <h2><span>2</span>打擊</h2>
+  <div class="phone">
+    <svg class="field" viewBox="0 0 1950 900" preserveAspectRatio="none">
+      <rect width="1950" height="330" fill="#9fb9cf"/><rect y="300" width="1950" height="60" fill="#22303a"/>
+      <rect y="360" width="1950" height="540" fill="#3f8f3a"/>
+      <path d="M0 900 L700 470 L1250 470 L1950 900 Z" fill="#b5673a"/>
+      <path d="M560 900 L860 620 L1090 620 L1390 900 Z" fill="#3f8f3a"/>
+      <ellipse cx="975" cy="470" rx="150" ry="28" fill="#b5673a"/>
+      <circle cx="975" cy="400" r="34" fill="#f3f1ea"/><rect x="950" y="430" width="50" height="70" rx="12" fill="#f3f1ea"/>
+      <circle cx="1280" cy="520" r="70" fill="#1f5a4c"/><rect x="1230" y="585" width="110" height="250" rx="30" fill="#f3f1ea"/>
+      <rect x="1330" y="330" width="16" height="260" rx="8" fill="#c79a5b" transform="rotate(18 1338 590)"/>
+    </svg>
+    <div class="ui panel score"><div class="t">鯨浪 <span class="n">0</span><br>雲豹 <span class="n">0</span></div><div><div>1 局下</div><div class="count"><span>B</span><span><i class="dot"></i><i class="dot"></i><i class="dot"></i></span><span>S</span><span><i class="dot on"></i><i class="dot"></i></span><span>O</span><span><i class="dot on"></i><i class="dot"></i></span></div></div></div>
+    <div class="ui panel card" style="left:2.5%;top:25%"><b>21</b><span>對方投手</span><i>投手・左投</i></div>
+    <div class="ui panel card" style="right:2.5%;top:25%"><b>9</b><span>我方打者</span><i>.312　4 轟</i></div>
+    <div class="ui panel pause">暫停</div>
+    <div class="ui zone"></div>
+    <div class="ui stick"></div>
+    <div class="ui main">揮棒</div>
+    <div class="ui sub" style="right:20%;bottom:8%">觸擊</div>
+    <div class="ui sub" style="right:20%;bottom:27%">強打</div>
+    <div class="tag" style="left:4%;bottom:35%">搖桿：把打擊點移到球的位置</div>
+    <div class="tag" style="right:3.5%;bottom:37%">主按鈕：揮棒</div>
+    <div class="tag" style="right:20%;bottom:46%">次要：切換打法</div>
+  </div>
+  <ul>
+    <li>和投球同一套版面：左搖桿、右主按鈕，換邊攻守不用重新習慣。</li>
+    <li>「觸擊」「強打」是切換打法的小按鈕。目前遊戲只有一般揮棒，這兩顆要另外做玩法，可以先不放。</li>
+  </ul>
+
+  <!-- ══ 守備 ══ -->
+  <h2><span>3</span>守備（球打出去之後）</h2>
+  <div class="phone">
+    <svg class="field" viewBox="0 0 1950 900" preserveAspectRatio="none">
+      <rect width="1950" height="900" fill="#3f8f3a"/>
+      <path d="M-100 620 L900 60 L2050 60 L2050 300 L1000 900 L-100 900 Z" fill="#b5673a"/>
+      <path d="M-100 900 L1150 200 L2050 200 L2050 60 L1300 60 L-100 780 Z" fill="#3f8f3a" opacity=".0"/>
+      <rect x="1080" y="640" width="46" height="34" fill="#f3f1ea" transform="rotate(-20 1100 655)"/>
+      <circle cx="960" cy="560" r="30" fill="#273a66"/><rect x="938" y="588" width="44" height="80" rx="12" fill="#273a66"/>
+      <ellipse cx="960" cy="672" rx="56" ry="14" fill="none" stroke="#e9c46a" stroke-width="5"/>
+      <circle cx="640" cy="690" r="30" fill="#e2573d"/><rect x="618" y="718" width="44" height="80" rx="12" fill="#f3f1ea"/>
+      <circle cx="1300" cy="700" r="30" fill="#e2573d"/><rect x="1278" y="728" width="44" height="80" rx="12" fill="#f3f1ea"/>
+    </svg>
+    <div class="ui panel score"><div class="t">鯨浪 <span class="n">0</span><br>雲豹 <span class="n">0</span></div><div><div>1 局上</div><div class="count"><span>B</span><span><i class="dot"></i><i class="dot"></i><i class="dot"></i></span><span>S</span><span><i class="dot"></i><i class="dot"></i></span><span>O</span><span><i class="dot on"></i><i class="dot"></i></span></div></div></div>
+    <div class="ui panel mini"><svg viewBox="0 0 120 104"><path d="M60 14 L104 52 L60 90 L16 52 Z" fill="#2f7a4a" stroke="#f3f1ea" stroke-width="2"/><rect x="56" y="10" width="8" height="8" fill="#f3f1ea"/><rect x="100" y="48" width="8" height="8" fill="#f3f1ea"/><rect x="12" y="48" width="8" height="8" fill="#f3f1ea"/><rect x="56" y="86" width="8" height="8" fill="#f3f1ea"/><circle cx="96" cy="60" r="5" fill="#e2573d"/><circle cx="70" cy="40" r="4" fill="#fff"/></svg></div>
+    <div class="ui panel pause">暫停</div>
+    <div class="ui call">出局</div>
+    <div class="ui diamond">
+      <div class="b" style="left:32%;top:0">二壘</div>
+      <div class="b" style="left:0;top:32%">三壘</div>
+      <div class="b mid" style="left:32%;top:32%">轉傳</div>
+      <div class="b" style="right:0;top:32%">一壘</div>
+      <div class="b" style="left:32%;bottom:0">本壘</div>
+    </div>
+    <div class="tag" style="right:3%;bottom:60%">菱形按鈕：位置和壘包方向一致</div>
+    <div class="tag" style="left:2.5%;top:60%">小地圖：跑者（紅）與球（白）</div>
+    <div class="tag" style="left:50%;top:44%;transform:translateX(-50%)">判決：大字斜條蓋在畫面中央</div>
+  </div>
+  <ul>
+    <li>傳壘按鈕固定在右下，不再跟著鏡頭移動。四顆的排列就是壘包的方向，不用讀字。</li>
+    <li>「轉傳」是把球傳給中繼的內野手。目前遊戲沒有這個玩法，可以先不放，中間留空。</li>
+    <li>左上小地圖讓你在鏡頭跟著球的時候，還是看得到跑者在哪。</li>
+  </ul>
+
+  <div class="note">
+    <b>電腦版</b>：維持現在的滑鼠和鍵盤操作（1 到 4 選球種與傳壘），這套按鈕只在觸控裝置上出現。<br>
+    <b>微調工具</b>：每顆按鈕的位置和大小會放進 D 鍵的微調面板，可以直接拖曳調整後匯出。<br>
+    <b>還沒決定的</b>：球員卡要不要放頭像（現有頭像是原版漫畫風球員）、觸擊和強打、轉傳，這三項牽涉到新玩法或新素材。
+  </div>
+</div>
+</body>
+</html>

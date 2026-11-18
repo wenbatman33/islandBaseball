@@ -935,6 +935,12 @@ CLIPS["stance"] = ("cmu", 0.8, 2.2, 0, "none", True)
 CLIPS["swing"] = ("cmu", 2.2, 3.35, 0, "keep", False)
 # 投球、傳球維持原本的動作（CLIPS 最上面的設定）。試過改用真人投球 124_01（"cmu_pitch"，2.2～4.0 秒、轉向 -6°），
 # 使用者比較後選擇原本的版本，所以不覆蓋
+# 真人投球（RIG_MOCAP_PITCH=1）：CMU 124_01。完整五段：站定 → 抬腿 → 跨步 → 手臂由後往前甩 → 後腳抬高、身體前壓收尾。
+# 轉 -6° 是量出手時跨步方向後對準 -Y（本壘方向）的角度
+if os.environ.get("RIG_MOCAP_PITCH") == "1":
+    # 從抬腿前開始，到收尾結束。骨盆的位移照真人的（keep）：投完人會停在跨步後的位置，
+    # 不在動作裡把骨盆滑回原位（腳沒動、人卻平移，看起來像在飄）；回投手板由遊戲讓他小跑回去
+    CLIPS["pitch"] = ("cmu_pitch", 2.6, 4.5, -6, "keep", False)
 CLIPS["ready"] = ("pose_ready", None, None, 0, "none", False)
 CLIPS["crouch"] = ("pose_crouch", None, None, 0, "none", False)
 BLEND = {}

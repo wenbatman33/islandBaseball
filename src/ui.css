@@ -399,3 +399,52 @@ body.instant .swing-fb.show { opacity: 1; }
 .bp-bar em { display: block; height: 0.3em; margin-top: 0.45em; border-radius: 0.2em; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
 .bp-bar u { display: block; height: 100%; background: #58f08a; transform-origin: left; }
 @media (max-width: 700px) { .bp-base { width: 4.8em; height: 4.8em; } .bp-bar { top: 3.6em; font-size: 0.9em; } }
+
+/* ── 觸控操作（手機）：左下搖桿、右下主按鈕、下方球種橫排 ── */
+.tc-stick, .tc-main { position: absolute; display: none; pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+.tc-stick.show { display: grid; }
+.tc-main.show { display: grid; }
+.tc-stick { left: max(1.6em, env(safe-area-inset-left)); bottom: 1.6em; width: 9.5em; aspect-ratio: 1; border-radius: 50%; place-items: center;
+  background: rgba(12, 18, 22, 0.5); border: 2px solid rgba(255, 255, 255, 0.28); transform-origin: left bottom; }
+.tc-stick i { width: 52%; aspect-ratio: 1; border-radius: 50%; background: #f3f1ea; box-shadow: 0 0.15em 0.6em rgba(0, 0, 0, 0.45); pointer-events: none; }
+.tc-main { right: max(1.6em, env(safe-area-inset-right)); bottom: 1.6em; width: 9.5em; aspect-ratio: 1; border-radius: 50%; place-items: center; border: 0;
+  background: #ff8a2a; color: #1a1206; font: 700 1.7em/1 var(--tc); letter-spacing: 0.1em; width: 5.6em; box-shadow: 0 0.2em 0.8em rgba(0, 0, 0, 0.4);
+  transform-origin: right bottom; -webkit-tap-highlight-color: transparent; }
+.tc-main:active { filter: brightness(0.86); scale: 0.96; }
+.pm-row small { display: none; }
+
+/* 觸控時球種改成下方橫排：每格是球種、拿手程度、球速 */
+body.touch .pitch-menu { left: 0; right: 0; margin: 0 auto; bottom: 1.2em; width: fit-content; padding: 0.3em; transform-origin: center bottom;
+  background: none; border: 0; backdrop-filter: none; }
+body.touch .pitch-menu.show { display: flex; gap: 0.35em; }
+body.touch .pm-head { display: none; }
+body.touch .pm-row { display: grid; grid-template-columns: 1fr auto; grid-template-areas: 'n g' 's s'; row-gap: 0.35em; column-gap: 0.5em; min-width: 5.6em;
+  padding: 0.6em 0.7em; margin: 0; border-radius: 0.5em; background: var(--panel); border: 1px solid var(--line); backdrop-filter: blur(10px); }
+body.touch .pm-row + .pm-row { margin-top: 0; }
+body.touch .pm-row kbd, body.touch .pm-row em { display: none; }
+body.touch .pm-row b { grid-area: n; white-space: nowrap; }
+body.touch .pm-row i { grid-area: g; }
+body.touch .pm-row small { grid-area: s; display: block; font: 500 0.75em/1 var(--tc); color: var(--dim); }
+body.touch .pm-row.on { background: #f3f1ea; color: #10161b; border-color: #f3f1ea; }
+body.touch .pm-row.on small { color: #55606b; }
+/* 觸控時提示文字往上移，不壓到球種列；打擊說明縮小放下方中央（打擊時那裡沒有球種列） */
+body.touch .hint { bottom: 6.6em; }
+body.touch .bat-help { left: 50%; right: auto; translate: -50% 0; bottom: 1em; top: auto; width: 27em; max-width: none; font-size: 0.78em; padding: 0.6em 0.9em; }
+/* 觸控時下方留給操作：打者資訊卡移到畫面上方中央並縮小 */
+body.touch .batter-card { bottom: auto; top: 0.8em; transform-origin: center top; font-size: 0.72em; }
+
+/* ── 觸控直式（手機直拿）：球種在最下方置中、放不下就換行；搖桿與主按鈕往上移到球種列上方；提示文字再往上 ── */
+@media (max-width: 700px) {
+  body.touch .pitch-menu { left: 0.6em; right: 0.6em; margin: 0; width: auto; bottom: 0.8em; padding: 0; justify-content: center; flex-wrap: wrap; transform-origin: center bottom; }
+  body.touch .pm-row { flex: 1 1 0; min-width: 0; padding: 0.55em 0.5em; }
+  body.touch .pm-row b { font-size: 0.92em; letter-spacing: 0.02em; }
+  body.touch .tc-stick { left: 0.8em; bottom: 5.4em; width: 8.4em; }
+  body.touch .tc-main { right: 0.8em; bottom: 5.4em; width: 5em; }
+  body.touch .hint { bottom: 18.6em; right: 13.5em; text-align: left; padding: 0 0 0 1em; }
+  body.touch .bat-help { left: 0.6em; right: 0.6em; width: auto; translate: none; bottom: 0.8em; }
+  /* 打者資訊卡：直式時放回比分板下方、靠左，不壓到右上角的聲音鈕 */
+  body.touch .batter-card { top: 13.6em; left: 0.8em; right: auto; width: auto; max-width: 62%; font-size: 0.8em; }
+  body.touch .batter-card .bc-stat { display: none; }
+}
+/* 觸控時「點一下開啟聲音」的提示移到上方，不蓋住下方的操作 */
+body.touch #sound-hint { bottom: auto; top: 38%; }

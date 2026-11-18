@@ -71,6 +71,10 @@ export async function loadPlayerSet(urls) {
   BODY.belt = 0.94;
   BODY.collar = 1.47;
   BACK_RECT.set(-0.15, 1.0, 0.3, 0.3);
+  // 這組模型的投球是真人動作（1.9 秒）：抬腿到出手 1.07 秒、之後是收尾。遊戲裡播 1.6 秒，出手大約在 0.54 的進度
+  ONE_SHOT.pitch = [[0, 0], [0.54, 1.07], [1, 1.9]];
+  PITCH.dur = 1.6;
+  PITCH.releaseU = 0.54;
   return ROLES;
 }
 const ROLE_BELT = { batter: 0.98, fielder: 0.95, catcher: 0.9, umpire: 0.9 };
@@ -559,6 +563,9 @@ function addGear(inner, opts) {
 // 投球：遊戲在進度 0.69 讓球離手，對到動作的出手那一格（第 41 格）。
 // 揮棒：從跨步前開始，進度 0.42 對到擊球那一格（第 25 格）。
 // 第 7 版：投球（Meshy 動作）在 1.25 秒出手；揮棒（CMU 真人動作捕捉）0.67 秒擊球；傳球在 0.5 秒出手
+// 投球動作在遊戲裡播多久（秒），以及播到多少進度時球離手（對到 ONE_SHOT.pitch 中間那個轉折點）。
+// 不同模型的投球動作不同，載入角色模型時會改
+export const PITCH = { dur: 1.25, releaseU: 0.69 };
 const ONE_SHOT = {
   pitch: [[0, 0], [0.69, 1.25], [1, 1.72]],
   swing: [[0, 0.45], [0.42, 0.67], [1, 1.13]], // CMU 真人揮棒：0.67 秒擊球

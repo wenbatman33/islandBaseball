@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { FIELD_Y } from './util.js';
 import { TUNE, SHOTS } from './tuning.js';
 import { PITCHES, GRADE_MUL } from './data.js';
-import { makeActor, FIELD_POS } from './player3d.js';
+import { makeActor, FIELD_POS, PITCH } from './player3d.js';
 import { flight, fieldPlay, resolveOutcome, BASES, SIM_DT } from './ballsim.js';
 import { sfx, sayParts, band } from './audio.js';
 import { line } from './commentary.js';
@@ -149,7 +149,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   let foul = null;
   let selPitch = 0;
   let released = false;
-  let throwTrack = null; // 投球時追蹤手的位置，用來決定出手的那一格
+  let pitchBack = null; // 投手投完球後回投手板的狀態
+  const SETTLE_T = 0.12;
   let lastPitch = '';
   const lastType = [null, null];
   const aim = { x: 0, y: zc };
@@ -183,6 +184,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   }
 
   function resetField() {
+    pitchBack = null;
     fielders.forEach((set, ti) => {
       for (const [pos, a] of Object.entries(set)) {
         a.group.visible = ti === fld();
@@ -253,8 +255,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     const sp = teams[fld()].sp;
     if (userPitching()) {
       setPhase('select');
-      ui.pitchMenu(sp.pitches, selPitch);
-      ui.hint('1–4 選球種　滑鼠瞄準　點擊投球，圈縮到剛好時再點一下');
+      ui.pitchMenu(sp.pitches, selPitch, sp.maxKmh);
+      ui.hint(ui.touch ? '搖桿瞄準　點選球種　按「投球」，圈縮到剛好時再按一下' : '1–4 選球種　滑鼠瞄準　點擊投球，圈縮到剛好時再點一下');
       ui.batHelp(false);
     } else {
       plan = aiPlan(sp);
@@ -313,7 +315,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     released = false;
     ui.pitchMenu(null);
     S.pitchCount[fld()]++;
-    pitcher().play('pitch', 1.25, 'idle');
+    // 上一球投完還沒走回投手板就要投下一球：直接站回去
+    if (pitchBack) {
+      const p = pitcher();
+      p.group.position.x = p.home[0];
+      p.group.position.z = p.home[1];
+      p.face(0, 0);
+      pitchBack = null;
+    }
+    pitcher().play('pitch', PITCH.dur, 'idle');
   }
 
   // 投手手上的球：掌心＝手腕骨和中指根部的中點（用兩根骨頭的實際位置算，不同身材的模型都對得上）。
@@ -1099,9 +1109,11 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     startWindup();
   }
 
-  canvas.addEventListener('pointermove', (e) => active() && pointerToAim(e));
+  // 觸控操作：瞄準用搖桿、動作用主按鈕，點畫面不會投球或揮棒（手指不用伸到好球帶上）
+  ui.onMainPress(action);
+  canvas.addEventListener('pointermove', (e) => active() && !ui.touch && pointerToAim(e));
   canvas.addEventListener('pointerdown', (e) => {
-    if (!active()) return;
+    if (!active() || ui.touch) return;
     if (phase !== 'meter') pointerToAim(e);
     action();
   });
@@ -1114,14 +1126,14 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       const n = +e.key - 1;
       if (n < teams[fld()].sp.pitches.length) {
         selPitch = n;
-        ui.pitchMenu(teams[fld()].sp.pitches, selPitch);
+        ui.pitchMenu(teams[fld()].sp.pitches, selPitch, teams[fld()].sp.maxKmh);
       }
     }
   });
   ui.onPitchPick((i) => {
     if (phase === 'select') {
       selPitch = i;
-      ui.pitchMenu(teams[fld()].sp.pitches, selPitch);
+      ui.pitchMenu(teams[fld()].sp.pitches, selPitch, teams[fld()].sp.maxKmh);
     }
   });
 
@@ -1189,7 +1201,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (phase === 'select' && TUNE.auto && pt > 0.3) throwWithMeter(0.75);
     else if (phase === 'meter' && pt >= 1.0) throwWithMeter(0.2);
     else if (phase === 'windup') {
-      if (!released && pt >= 1.25 * 0.9) release(); // 保險：正常由下面「手甩到最前面」那一刻放球，這裡只防萬一沒偵測到
+      if (!released && pt >= PITCH.dur * 0.9) release(); // 保險：正常由下面依投球動作的進度放球，這裡只防萬一沒觸發
     }
     if (phase === 'flight' && pitch) {
       pitch.t += dt;
@@ -1234,24 +1246,84 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (batter) batter.update(dt);
     for (const r of runners) r.actor.update(dt);
     ump.update(dt);
+    // 投手投完球：真人投球會往前跨出半公尺多，動作播完人停在跨步後的位置。接著轉身小跑回投手板、再轉回來面向本壘
+    // （不在動作裡把人平移回去：腳沒動、人卻滑回原位，看起來像在飄）
+    {
+      const p = pitcher();
+      const hips = p && p.group.getObjectByName('mixamorigHips');
+      if (p && hips) {
+        const g = p.group.position;
+        if (p.pose === 'pitch') {
+          hips.getWorldPosition(_knuckle);
+          const off = { x: _knuckle.x - g.x, z: _knuckle.z - g.z };
+          if (!pitchBack || pitchBack.state !== 'pitching') pitchBack = { state: 'pitching', off0: off, off };
+          else pitchBack.off = off;
+        } else if (pitchBack && pitchBack.state === 'pitching') {
+          const dx = pitchBack.off.x - pitchBack.off0.x;
+          const dz = pitchBack.off.z - pitchBack.off0.z;
+          if (Math.hypot(dx, dz) > 0.15) pitchBack = { state: 'settle', dx, dz, t: 0 };
+          else pitchBack = null; // 這套投球動作會自己回到原位
+        } else if (pitchBack && pitchBack.state === 'settle') {
+          // 動作從投球淡出的這一小段，把人的位置補到跨步後的地方（和淡出同步，才不會跳一下）
+          const k = Math.min(dt, SETTLE_T - pitchBack.t) / SETTLE_T;
+          g.x += pitchBack.dx * k;
+          g.z += pitchBack.dz * k;
+          pitchBack.t += dt;
+          if (pitchBack.t >= SETTLE_T) {
+            pitchBack = { state: 'return' };
+            p.face(p.home[0], p.home[1]);
+            p.set('run');
+          }
+        } else if (pitchBack && pitchBack.state === 'return') {
+          const dx = p.home[0] - g.x;
+          const dz = p.home[1] - g.z;
+          const d = Math.hypot(dx, dz);
+          const step = 2.2 * dt;
+          if (d <= step) {
+            g.x = p.home[0];
+            g.z = p.home[1];
+            p.face(0, 0);
+            p.set('idle');
+            pitchBack = null;
+          } else {
+            g.x += (dx / d) * step;
+            g.z += (dz / d) * step;
+          }
+        }
+      }
+    }
     // 出手前：球握在投手手裡。一定要放在球員動畫更新之後，不然球會用到上一格的手，慢一格就差十幾公分
     if (phase === 'windup' && !released) {
       const hp = pitcherBallPos();
       if (hp) {
         ball.visible = true;
         ball.position.copy(hp);
-        // 出手時機由手的動作決定：手往本壘方向（+Z）甩到最前面、開始往回收的那一格放球，從最前面那個位置飛出去。
-        // 前半段是抬腿、手往後拉，不算（手要先比起始位置往前伸出 0.5 公尺以上才開始判斷）
-        if (!throwTrack) throwTrack = { z0: hp.z, best: hp.clone() };
-        if (hp.z > throwTrack.best.z) throwTrack.best.copy(hp);
-        else if (throwTrack.best.z - throwTrack.z0 > 0.5 && hp.z < throwTrack.best.z - 0.005) {
-          const from = throwTrack.best;
-          throwTrack = null;
-          release(from);
-        }
+        // 出手時機：投球動作播到「出手那一格」的進度就放球，球從手當時的位置飛出去。
+        // 每套投球動作的出手進度不同（在 Blender 量手的軌跡定出來的，見 player3d.js 的 PITCH.releaseU）
+        const p = pitcher();
+        if (p.pose === 'pitch' && p.u >= PITCH.releaseU) release(hp);
       }
-    } else if (throwTrack) throwTrack = null;
+    }
     updateWidgets();
+    updateTouch(dt);
+  }
+
+  // 觸控：搖桿推多少、準星就以那個速度移動（放開就停）；主按鈕的文字跟著目前能做的動作換
+  const STICK_SPEED = 1.1; // 推到底時準星每秒移動的距離（公尺）
+  function updateTouch(dt) {
+    if (!ui.touch) return;
+    let label = '';
+    if (active() && camMode === 'plate') {
+      if (phase === 'select' && !userBatting()) label = '投球';
+      else if (phase === 'meter') label = '出手';
+      else if (userBatting() && ['select', 'meter', 'set', 'windup', 'flight'].includes(phase)) label = '揮棒';
+    }
+    ui.touchControls(label);
+    const st = ui.stick();
+    if (label && phase !== 'meter' && (st.x || st.y)) {
+      aim.x = clamp(aim.x + st.x * STICK_SPEED * dt, -0.62, 0.62);
+      aim.y = clamp(aim.y + st.y * STICK_SPEED * dt, 0.18, 1.45);
+    }
   }
 
   function start() {
@@ -1278,6 +1350,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     start,
     update,
     // 除錯量測：球與投手手掌的位置（驗證球有沒有握在手上、有沒有從手裡出去）
+    // 除錯量測：投手的位置、骨盆與雙腳的世界座標（驗證投完球後有沒有平移滑動）
+    debugPitcher: () => {
+      const p = pitcher();
+      const w = (n) => {
+        const b = p.group.getObjectByName(n);
+        return b ? b.getWorldPosition(new THREE.Vector3()).toArray() : null;
+      };
+      return { pose: p.pose, state: pitchBack ? pitchBack.state : '', group: p.group.position.toArray(), hips: w('mixamorigHips'), footL: w('mixamorigLeftFoot'), footR: w('mixamorigRightFoot') };
+    },
     debugBall: () => {
       // 用獨立的方式取手的位置（手腕骨本身），不經過 pitcherBallPos，才驗得出球是不是真的在手上
       const w = pitcher().group.getObjectByName('mixamorigRightHand');
@@ -1296,6 +1377,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     },
     // 測試用：目前這球的飛行進度與進壘點、直接設定游標位置
     debugPitch: () => (pitch ? { s: pitch.t / pitch.Tf, T: pitch.T, Tf: pitch.Tf } : null),
+    debugState: () => ({ phase, aim: { ...aim }, selPitch, userBatting: userBatting() }),
     debugAim(x, y) {
       aim.x = x;
       aim.y = y;
