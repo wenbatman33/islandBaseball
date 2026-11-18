@@ -21,6 +21,44 @@ import { buildStadium } from './stadium.js';
 import { buildEnvironment, buildSky } from './environment.js';
 import { renderPortraits } from './portraits.js';
 import { loadPlayerModel, loadPlayerSet } from './player3d.js';
+
+// ── 不讓瀏覽器的手勢介入遊戲（手機）──
+// iOS Safari 會忽略 viewport 的 user-scalable=no，所以縮放要另外用事件擋掉；長按的放大鏡與選單來自文字選取，
+// CSS 已經關掉選取，這裡再擋掉長按選單與觸控的預設行為（DEV 面板與輸入框除外，才能捲動和打字）
+{
+  const editable = (t) => t instanceof Element && !!t.closest('.lil-gui, #dev-export, input, textarea, select');
+  const stop = (e) => {
+    if (!editable(e.target)) e.preventDefault();
+  };
+  for (const type of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(type, stop, { passive: false }); // iOS 雙指縮放
+  document.addEventListener('contextmenu', stop); // 長按選單
+  document.addEventListener('selectstart', stop);
+  document.addEventListener('dblclick', stop);
+  document.addEventListener('touchmove', stop, { passive: false }); // 拉動整頁、雙指縮放
+  // 長按出現放大鏡：iOS 在 touchstart 沒被取消時才會啟動。按鈕與連結要保留點擊，其餘（畫面、搖桿、文字）都取消
+  document.addEventListener(
+    'touchstart',
+    (e) => {
+      if (e.touches.length > 1) return stop(e);
+      const t = e.target;
+      if (editable(t) || (t instanceof Element && t.closest('button, a, [data-i]'))) return;
+      e.preventDefault();
+    },
+    { passive: false },
+  );
+  let lastTap = 0; // 連點兩下放大
+  document.addEventListener(
+    'touchend',
+    (e) => {
+      const now = performance.now();
+      if (now - lastTap < 320 && !editable(e.target)) e.preventDefault();
+      lastTap = now;
+    },
+    { passive: false },
+  );
+  window.addEventListener('wheel', (e) => e.ctrlKey && e.preventDefault(), { passive: false }); // 觸控板捏合、Ctrl＋滾輪
+  window.addEventListener('keydown', (e) => (e.ctrlKey || e.metaKey) && ['=', '+', '-', '0'].includes(e.key) && e.preventDefault());
+}
 import { buildIntroDOM, createDirector, SEGS } from './intro.js';
 import { buildHud } from './hud.js';
 import { buildGameUI } from './gameui.js';
