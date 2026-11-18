@@ -263,10 +263,13 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
           float skin = vRegion.g * (1.0 - smoothstep(0.82, 0.95, ratio) * smoothstep(0.55, 0.75, lum)); // 眼白不跟著膚色變暗
           if (uFlat > 0.5) {
             // 角色模型（卡通比例）：貼圖是乾淨的純色，直接依每個像素的顏色判斷，不看三角形的區域標記（網格疏，邊緣會成鋸齒）
-            float warm = s.r - s.b; // 米白約 0.1～0.2、膚色約 0.4、純白（護腕、眼白）接近 0
+            float warm = s.r - s.b; // 純白（護腕、眼白）接近 0，米白 0.1 以上
+            // 米白和膚色用「紅減綠」分：米白 0.04～0.12、膚色 0.2 以上。
+            // （不能用紅減藍：有的模型米白偏黃到 0.36，和另一個模型的膚色 0.36 重疊）
+            float rg = s.r - s.g;
             green = smoothstep(0.02, 0.07, s.g - max(s.r, s.b));
-            cream = uDecal * (1.0 - green) * smoothstep(0.62, 0.74, lum) * smoothstep(0.03, 0.07, warm) * (1.0 - smoothstep(0.24, 0.3, warm)) * (1.0 - step(uCreamTop, vRest.y));
-            skin = (1.0 - green) * smoothstep(0.28, 0.34, warm) * smoothstep(0.5, 0.62, lum);
+            cream = uDecal * (1.0 - green) * smoothstep(0.62, 0.74, lum) * smoothstep(0.03, 0.07, warm) * (1.0 - smoothstep(0.14, 0.18, rg)) * (1.0 - step(uCreamTop, vRest.y));
+            skin = (1.0 - green) * smoothstep(0.15, 0.19, rg) * smoothstep(0.5, 0.62, lum);
           }
           vec3 cloth = mix(uJersey, uPants, 1.0 - smoothstep(uBelt - 0.01, uBelt + 0.01, vRest.y));
           // 背上原本印死的 17：整塊改回球衣布料，再印上這位球員自己的姓名與背號
@@ -315,7 +318,7 @@ function tintedMaterial(base, { jersey, accent, pants, skin, hair, no, name, loo
         }`,
       );
   };
-  m.customProgramCacheKey = () => 'player-tint-v11-roles';
+  m.customProgramCacheKey = () => 'player-tint-v12-roles';
   return m;
 }
 

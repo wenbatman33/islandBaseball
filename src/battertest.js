@@ -64,11 +64,10 @@ function nameClips(clips) {
 
 // ── 載入 ──
 const MODELS = [
-  { key: 'tripo', label: '守備員（Tripo）', url: '/lab/tripo_fielder.glb', x: 0.9 },
-  { key: 'fielder', label: '守備員（Meshy）', url: '/lab/chibi_fielder.glb', x: -0.9 },
-  { key: 'batter', label: '打者', url: '/lab/chibi_batter.glb', x: 2.7 },
-  { key: 'catcher', label: '捕手', url: '/lab/chibi_catcher.glb', x: -2.7 },
-  { key: 'umpire', label: '裁判', url: '/lab/chibi_umpire.glb', x: -4.5 },
+  { key: 'batter', label: '打者', url: '/lab/tripo_batter.glb', x: 2.7 },
+  { key: 'fielder', label: '守備員', url: '/lab/tripo_fielder.glb', x: 0.9 },
+  { key: 'catcher', label: '捕手', url: '/lab/tripo_catcher.glb', x: -0.9 },
+  { key: 'umpire', label: '裁判', url: '/lab/tripo_umpire.glb', x: -2.7 },
 ];
 const loader = new GLTFLoader();
 const actors = [];
@@ -170,8 +169,8 @@ const CAMS = {
   斜前: [[5.5, 1.8, 9.5], [0, 0.95, 0]],
   側面: [[11.5, 1.1, 0], [0, 0.95, 0]],
   背面: [[0, 1.3, -11.5], [0, 0.95, 0]],
-  近看兩個守備員: [[0, 1.4, 5.2], [0, 1.0, 0]],
-  近看Tripo: [[1.7, 1.5, 2.6], [0.9, 1.2, 0]],
+  近看中間兩個: [[0, 1.4, 5.2], [0, 1.0, 0]],
+  近看打者: [[3.5, 1.5, 2.6], [2.7, 1.2, 0]],
 };
 function setCam(n) {
   camera.position.fromArray(CAMS[n][0]);
