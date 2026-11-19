@@ -4,6 +4,7 @@ import { TUNE, SHOTS } from './tuning.js';
 import { PITCHES, GRADE_MUL } from './data.js';
 import { makeActor, FIELD_POS, PITCH } from './player3d.js';
 import { createArmFx } from './armfx.js';
+import { createHbpFx } from './hbpfx.js';
 import { flight, fieldPlay, resolveOutcome, BASES, SIM_DT } from './ballsim.js';
 import { sfx, sayParts, band } from './audio.js';
 import { line } from './commentary.js';
@@ -34,6 +35,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   root.position.y = FIELD_Y;
   scene.add(root);
 
+  const hbpFx = createHbpFx(root); // 觸身球：打者被砸到的反應
   const armFx = createArmFx(root); // 投手累了、混亂時的肢體表現與汗滴、星星
 
   // ── 角色 ──
@@ -581,9 +583,17 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   function hitByPitch() {
     setPhase('call');
     ui.call('觸身球', 'ball');
+    sfx.hit(0.25);
     sfx.pop();
+    // 球砸在身上（靠本壘板那一側），打者往外縮；球彈開掉在地上
+    const hx = -batter.side * 0.62;
+    pitch.hbp = { x: hx, y: pitch.T.y, vx: batter.side * 1.1, t: 0 };
+    hbpFx.hit(batter, -batter.side, new THREE.Vector3(hx, pitch.T.y, 0.05));
     refresh();
-    schedule(1.1, () => walk(true));
+    schedule(1.6, () => {
+      hbpFx.stop();
+      walk(true);
+    });
   }
 
   function callPitch(kind) {
@@ -1421,7 +1431,14 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       const wait = userBatting() && !swing ? GRACE : 0;
       if (pitch.t >= pitch.Tf + wait && !pitch.resolved) resolvePitch();
     }
-    if (phase === 'call' && pitch) {
+    if (phase === 'call' && pitch && pitch.hbp) {
+      // 觸身球：球從身上彈開，落地後滾一小段
+      const h = pitch.hbp;
+      h.t += dt;
+      const air = Math.min(h.t, 0.62);
+      const y = Math.max(0.04, h.y + 1.6 * h.t - 4.9 * h.t * h.t);
+      ball.position.set(h.x + h.vx * (air + Math.max(0, h.t - air) * 0.3), y, 0.05 - 1.4 * (air + Math.max(0, h.t - air) * 0.3));
+    } else if (phase === 'call' && pitch) {
       // 沒打到的球繼續飛進捕手手套
       pitch.t += dt;
       const s = pitch.t / pitch.Tf;
@@ -1443,6 +1460,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       for (const set of fielders) for (const a of Object.values(set)) a.update(dt);
     } else for (const a of Object.values(fielders[fld()])) a.update(dt);
     if (batter) batter.update(dt);
+    if (phase !== 'call') hbpFx.stop(); // 保險：流程被打斷時不要讓反應卡在打者身上
+    hbpFx.update(dt);
     for (const r of runners) r.actor.update(dt);
     ump.update(dt);
     // 投手的狀態做在他身上（彎腰喘氣、發抖、汗滴、星星），要排在動作更新之後
@@ -1590,6 +1609,15 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     },
     // 測試用：目前這球的飛行進度與進壘點、直接設定游標位置
     debugPitch: () => (pitch ? { s: pitch.t / pitch.Tf, T: pitch.T, Tf: pitch.Tf } : null),
+    // DEV：直接演一次觸身球
+    debugHbp() {
+      if (!started || S.over || !batter || !pitch || phase === 'play') return false;
+      timer = null;
+      pitch.T = { x: -batter.side * 0.62, y: 0.95 };
+      ball.visible = true;
+      hitByPitch();
+      return true;
+    },
     debugState: () => ({ phase, aim: { ...aim }, selPitch, userBatting: userBatting() }),
     debugAim(x, y) {
       aim.x = x;
