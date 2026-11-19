@@ -37,3 +37,6 @@ public/models/player/player_v6.glb
 public/lab/*.glb
 tools/soundfont/
 public/audio/cheer/samples/
+
+# 瘦身時暫存的待刪檔（確認沒問題後才真的清掉）
+.trash/

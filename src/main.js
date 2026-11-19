@@ -175,15 +175,11 @@ async function start() {
   composer.addPass(grade);
 
   // 球員模型要先載入，頭像和場上球員才能建立
-  // 球員模型：預設是卡通比例的四個角色（守備員是 Tripo 生成並綁好骨架的，手套做在模型上；打者、捕手、裁判是 Meshy 的）。
-  // 網址加 ?model=classic 用原本的漫畫風球員、?model=meshy 四個角色換回 Meshy 版（比較用）、?model=real 是寫實球員
+  // 球員模型：四個角色（打者、守備員、捕手、裁判）都是 Tripo 生成並綁好骨架的版本，手套做在模型上。
+  // 網址加 ?model=classic 用原本的漫畫風球員
   const modelKind = new URLSearchParams(location.search).get('model');
-  // 四個角色都是 Tripo 生成的版本；?model=meshy 換回 Meshy 生成的舊版對照
   const SET = { batter: '/lab/tripo_batter.glb', fielder: '/lab/tripo_fielder.glb', catcher: '/lab/tripo_catcher.glb', umpire: '/lab/tripo_umpire.glb' };
-  const MESHY = { batter: '/lab/chibi_batter.glb', fielder: '/lab/chibi_fielder.glb', catcher: '/lab/chibi_catcher.glb', umpire: '/lab/chibi_umpire.glb' };
   if (modelKind === 'classic') await loadPlayerModel();
-  else if (modelKind === 'real') await loadPlayerModel('/lab/batter_pro_game.glb');
-  else if (modelKind === 'meshy') await loadPlayerSet(MESHY);
   else await loadPlayerSet(SET, { gloveBaked: true, belt: { batter: 1.03, fielder: 0.97, catcher: 0.92, umpire: 0.93 } });
 
   // 選隊：選好之後才建立頭像、開場畫面與比賽（這些都是照對戰組合做的）

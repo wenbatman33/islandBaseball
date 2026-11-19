@@ -23,10 +23,8 @@ if (existsSync(join(voice, 'manifest.json'))) {
   const used = new Set(Object.values(JSON.parse(readFileSync(join(voice, 'manifest.json'), 'utf8'))));
   for (const f of readdirSync(voice)) if (f.endsWith('.m4a') && !used.has(f)) drop(join(voice, f));
 }
-// 試用模型（public/lab）：只部署遊戲會用到的（預設的四個角色、?model=meshy 的守備員、?model=real 的寫實球員），其餘是測試頁的中間檔
+// 球員模型（public/lab）：只部署遊戲用的四個 Tripo 角色
 const lab = join(DIST, 'lab');
-const LAB_KEEP = new Set(['tripo_batter.glb', 'tripo_fielder.glb', 'tripo_catcher.glb', 'tripo_umpire.glb', 'chibi_batter.glb', 'chibi_fielder.glb', 'chibi_catcher.glb', 'chibi_umpire.glb', 'batter_pro_game.glb']);
+const LAB_KEEP = new Set(['tripo_batter.glb', 'tripo_fielder.glb', 'tripo_catcher.glb', 'tripo_umpire.glb']);
 if (existsSync(lab)) for (const f of readdirSync(lab)) if (f.endsWith('.glb') && !LAB_KEEP.has(f)) drop(join(lab, f));
-// 應援曲試聽用的音檔（cheer-test.html）不部署
-drop(join(DIST, 'audio', 'cheer', 'samples'));
 console.log(`已從 dist 移除 ${removed} 項不部署的檔案`);
