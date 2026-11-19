@@ -620,26 +620,6 @@ body:has(.final.show) #sound-hint { display: none; }
 .pitcher-chip.rattled { animation: rattle-chip 0.22s linear infinite; filter: drop-shadow(0 0 0.6em #ff5ad0) drop-shadow(0 0.35em 0.45em rgba(0, 0, 0, 0.55)); }
 .hud-top .pitcher-chip.rattled { filter: none; }
 @keyframes rattle-chip { 0%, 100% { translate: 0 0; } 25% { translate: 0.08em -0.06em; } 50% { translate: -0.07em 0.05em; } 75% { translate: 0.05em 0.07em; } }
-/* 投手狀態警示：畫面上方中央一條，橘＝累了、紅＝快沒力、紫紅＝混亂 */
-/* 置中用左右留白加自動邊界（版面微調工具會寫行內的 translate，不能拿來置中） */
-.arm-warn { position: absolute; left: 0; right: 0; margin: 0 auto; width: fit-content; top: 7.6em; display: none; align-items: center; gap: 0.9em; padding: 0.55em 1.3em 0.5em; white-space: nowrap;
-  font: 700 0.9em/1 var(--tc); color: #fff; border: 0.14em solid #050a20; border-radius: 99px; box-shadow: 0 0 0 0.12em var(--warn), 0 0.25em 0.5em rgba(0, 0, 0, 0.5);
-  background: linear-gradient(rgba(255, 255, 255, 0.22), transparent 50%), linear-gradient(90deg, color-mix(in srgb, var(--warn) 85%, #000), color-mix(in srgb, var(--warn) 45%, #050a20));
-  --warn: #ff9a1e; transform-origin: center top; animation: warn-in 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
-.arm-warn.show { display: flex; }
-.arm-warn[data-kind='spent'] { --warn: #e8372c; animation: warn-in 0.3s both, warn-pulse 0.7s 0.3s ease-in-out infinite; }
-.arm-warn[data-kind='rattled'] { --warn: #d83ab8; animation: warn-in 0.3s both, warn-shake 0.22s 0.3s linear infinite; }
-@keyframes warn-shake { 0%, 100% { rotate: 0deg; } 25% { rotate: 0.8deg; } 75% { rotate: -0.8deg; } }
-.arm-warn b { font-weight: 900; font-size: 1.15em; letter-spacing: 0.1em; text-shadow: 0 0.07em 0 #050a20; }
-.arm-warn b::before { content: '!'; display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; margin-right: 0.5em; border-radius: 50%; font: italic 900 1em/1 var(--display); color: #050a20; background: #fff; }
-.arm-warn span { color: #ffeede; }
-.arm-warn em { padding: 0.3em 0.8em 0.25em; font-style: normal; font-weight: 900; color: var(--navy); background: linear-gradient(#fff6b0, var(--accent)); border-radius: 99px; box-shadow: 0 0.1em 0 #050a20; }
-@keyframes warn-in { from { opacity: 0; scale: 0.6; } }
-@keyframes warn-pulse { 50% { box-shadow: 0 0 0 0.12em var(--warn), 0 0 1.4em var(--warn); } }
-@media (max-width: 700px) {
-  .arm-warn { top: 17.6em; left: 0.7em; right: 0.7em; width: auto; flex-wrap: wrap; gap: 0.3em 0.7em; white-space: normal; border-radius: 0.9em; font-size: 0.8em; padding: 0.5em 0.9em; }
-  .arm-warn span { flex: 1 1 100%; order: 3; line-height: 1.35; }
-}
 /* 換投手按鈕 */
 .pen-btn { position: absolute; right: 1.75em; bottom: 2em; display: none; pointer-events: auto; cursor: pointer; padding: 0.6em 1.2em 0.5em; text-align: center;
   font: 900 1em/1.1 var(--tc); letter-spacing: 0.1em; color: #fff; border: 0.14em solid #050a20; border-radius: 0.8em;

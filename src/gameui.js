@@ -14,7 +14,6 @@ export function buildGameUI(root) {
      <div class="pitch-menu" data-lay="pitchMenu"></div>
      <button type="button" class="pen-btn" data-lay="penBtn"></button>
      <div class="bullpen"></div>
-     <div class="arm-warn" data-lay="armWarn"></div>
      <div class="hint" data-lay="hint"></div>
      <div class="bat-help"></div>
      <div class="swing-fb"></div>
@@ -37,7 +36,6 @@ export function buildGameUI(root) {
   let pick = () => {};
   const elPen = root.querySelector('.pen-btn');
   const elBullpen = root.querySelector('.bullpen');
-  const elWarn = root.querySelector('.arm-warn');
   let penOpen = () => {};
   let penPick = () => {};
   elPen.addEventListener('pointerdown', (e) => {
@@ -112,20 +110,6 @@ export function buildGameUI(root) {
   return {
     onPitchPick(fn) {
       pick = fn;
-    },
-    // 投手狀態警示（輪到玩家投球時才顯示）：kind＝'' 不顯示、'tired' 體力過半、'spent' 快沒力、'rattled' 混亂
-    armWarn(kind, canChange) {
-      if (elWarn.dataset.kind === kind && elWarn.dataset.c === String(!!canChange)) return;
-      elWarn.dataset.kind = kind;
-      elWarn.dataset.c = String(!!canChange);
-      elWarn.classList.toggle('show', !!kind);
-      if (!kind) return;
-      const msg = {
-        tired: ['投手累了', '球速變慢、控球變差'],
-        spent: ['投手快沒力了', '球速大幅下降，隨時可能亂掉'],
-        rattled: ['投手混亂中', '準星會亂晃、球不受控制，拿到出局數才會恢復'],
-      }[kind];
-      elWarn.innerHTML = `<b>${msg[0]}</b><span>${msg[1]}</span>${canChange ? `<em>${touch ? '點右邊「換投手」' : '按 P 換投手'}</em>` : ''}`;
     },
     onPenOpen(fn) {
       penOpen = fn;

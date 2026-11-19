@@ -35,13 +35,13 @@ export function buildHud(root) {
         <div><span>O</span>${dots(2, S.outs)}</div>
       </div>`;
 
-    // 投手資訊：名字下面一條體力條（一半以下變橘、四分之一以下變紅），混亂時整塊閃、掛上「混亂」
+    // 投手資訊：名字下面一條體力條（一半以下變橘、四分之一以下變紅），混亂時整塊搖晃發紫光。狀態不寫成文字，主要看投手本人的動作
     const en = Math.round(energy);
     elPit.classList.toggle('rattled', !!rattle);
     elPit.innerHTML = `
       <span class="face sm" style="--c1:${fldTeam.c1};--c2:${fldTeam.c2}"><img src="${pitcher.face}" alt=""></span>
-      <div class="pc-main"><small>投手 · ${pitcher.hand}${rattle ? '<i class="pc-rattle">混亂</i>' : ''}</small><b>${pitcher.name}</b>
-        <span class="pc-en ${en < 25 ? 'low' : en < 50 ? 'mid' : ''}" title="體力 ${en}"><u><s style="width:${en}%"></s></u><em>${en}</em></span></div>
+      <div class="pc-main"><small>投手 · ${pitcher.hand}</small><b>${pitcher.name}</b>
+        <span class="pc-en ${en < 25 ? 'low' : en < 50 ? 'mid' : ''}" title="體力 ${en}"><u><s style="width:${en}%"></s></u></span></div>
       <div class="pc-num"><b>${pitchCount}</b><small>球數</small></div>
       <div class="pc-last">${lastPitch || '—'}</div>`;
 

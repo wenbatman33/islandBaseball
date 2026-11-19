@@ -3,6 +3,7 @@ import { FIELD_Y } from './util.js';
 import { TUNE, SHOTS } from './tuning.js';
 import { PITCHES, GRADE_MUL } from './data.js';
 import { makeActor, FIELD_POS, PITCH } from './player3d.js';
+import { createArmFx } from './armfx.js';
 import { flight, fieldPlay, resolveOutcome, BASES, SIM_DT } from './ballsim.js';
 import { sfx, sayParts, band } from './audio.js';
 import { line } from './commentary.js';
@@ -32,6 +33,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   const root = new THREE.Group();
   root.position.y = FIELD_Y;
   scene.add(root);
+
+  const armFx = createArmFx(root); // 投手累了、混亂時的肢體表現與汗滴、星星
 
   // ── 角色 ──
   const fielders = teams.map((team) => {
@@ -186,7 +189,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     root.remove(old.group);
     root.add(a.group);
     fielders[t].P = a;
-    Object.assign(m, { p: np, energy: 100, rattle: 0, streak: 0 });
+    Object.assign(m, { p: np, energy: 100, rattle: 0, streak: 0, seen: 0 });
     S.pitchCount[t] = 0;
     pitchBack = null;
     selPitch = 0;
@@ -352,7 +355,25 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     schedule(aiBullpen() ? 2.2 : 0.7, beginPitch);
   }
 
-  function beginPitch() {
+  function beginPitch(fromCloseup) {
+    // 投手的狀態變差了（累了、快沒力、亂掉）：鏡頭先給他兩秒，讓人看見他的樣子，再開始這一球
+    {
+      const m = mound();
+      const lvl = (m.rattle ? 10 : 0) + (m.energy < 25 ? 2 : m.energy < 50 ? 1 : 0);
+      const worse = lvl > (m.seen || 0);
+      m.seen = lvl;
+      if (worse && fromCloseup !== true) {
+        camMode = 'mound';
+        setPhase('pre');
+        ui.pitchMenu(null);
+        ui.hint('');
+        ui.batHelp(false);
+        ball.visible = false;
+        if (batter) batter.set('stance');
+        pitcher().set('idle');
+        return schedule(2.4, () => beginPitch(true));
+      }
+    }
     swing = null;
     aiSwing = null;
     pitch = null;
@@ -1176,6 +1197,13 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       camera.fov = s.fov * (portrait ? 1.15 : 1);
       look.set(0, 1, -18);
       followFov = 44;
+    } else if (camMode === 'mound') {
+      // 投手特寫：從本壘這一側的斜前方看他
+      const pp = pitcher().group.position;
+      camera.position.set(pp.x + 1.5, FIELD_Y + pp.y + 0.95, pp.z + 3.6); // 放低往上拍，帽簷底下的臉才看得到
+      vT.set(pp.x, FIELD_Y + pp.y + 1.3, pp.z);
+      camera.lookAt(vT);
+      camera.fov = portrait ? 38 : 27;
     } else {
       camera.position.set(0, 10.4, 27.4);
       const bx = ball.visible ? ball.position.x : 0;
@@ -1380,6 +1408,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (batter) batter.update(dt);
     for (const r of runners) r.actor.update(dt);
     ump.update(dt);
+    // 投手的狀態做在他身上（彎腰喘氣、發抖、汗滴、星星），要排在動作更新之後
+    armFx.update(pitcher(), { fatigue: fatigue(mound()), rattle: !!mound().rattle, resting: pitcher().pose === 'idle' }, dt);
     // 投手投完球：真人投球會往前跨出半公尺多，動作播完人停在跨步後的位置。接著轉身小跑回投手板、再轉回來面向本壘
     // （不在動作裡把人平移回去：腳沒動、人卻滑回原位，看起來像在飄）
     {
@@ -1442,12 +1472,6 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     updateTouch(dt);
     // 「換投手」按鈕：輪到玩家投球、還沒開始投、牛棚還有人的時候才出現
     ui.penButton(phase === 'select' && userPitching() && active() && camMode === 'plate' ? mound().pen.length : 0);
-    // 投手狀態警示：玩家準備投球時，體力不足或混亂就提醒，並告知可以換投
-    {
-      const m = mound();
-      const show = (phase === 'select' || phase === 'meter') && userPitching() && active() && camMode === 'plate';
-      ui.armWarn(!show ? '' : m.rattle ? 'rattled' : m.energy < 25 ? 'spent' : m.energy < 50 ? 'tired' : '', m.pen.length > 0);
-    }
   }
 
   // 觸控：搖桿推多少、準星就以那個速度移動（放開就停）；主按鈕的文字跟著目前能做的動作換
@@ -1552,6 +1576,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     debugArm(o) {
       Object.assign(mound(), o);
       refresh();
+      if (Object.keys(o).length && phase === 'select') beginPitch(); // 重新走一次投球前的流程（狀態變差會先給特寫）
       return { ...mound(), p: mound().p.name, pen: mound().pen.map((x) => x.name) };
     },
     debugPen: () => openBullpen(),
