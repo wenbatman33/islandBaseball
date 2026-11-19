@@ -240,6 +240,38 @@ async function start() {
     setMuted(!isMuted());
     muteBtn.blur(); // 不然之後按空白鍵會變成又按一次這顆按鈕
   });
+  // 暫停：右上角按鈕或 Esc 鍵；暫停時整個畫面蓋上暫停面板，比賽時間、動作、應援全部停住
+  const pauseBtn = document.getElementById('pause-toggle');
+  const pauseEl = document.getElementById('pause-screen');
+  const setPause = (v) => {
+    const on = game.hold(v);
+    pauseEl.hidden = !on;
+    document.body.classList.toggle('paused', on);
+    if (on) {
+      const S = game.S;
+      pauseEl.querySelector('.ps-score').innerHTML =
+        `<span>${GAME.away.short}</span><b>${S.score[0]}</b><i>${S.inning} 局${S.half ? '下' : '上'}</i><b>${S.score[1]}</b><span>${GAME.home.short}</span>`;
+    }
+  };
+  pauseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setPause(!game.held);
+    pauseBtn.blur();
+  });
+  pauseEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+  pauseEl.querySelector('#ps-resume').addEventListener('click', () => setPause(false));
+  pauseEl.querySelector('#ps-reselect').addEventListener('click', () => {
+    const q = new URLSearchParams(location.search);
+    for (const k of ['end', 'home', 'away']) q.delete(k);
+    location.search = q.toString();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || director.state.mode !== 'live') return;
+    e.preventDefault();
+    setPause(!game.held);
+  });
+  // 切到別的分頁或把視窗縮起來：自動暫停，回來不會發現比賽自己跑掉了
+  document.addEventListener('visibilitychange', () => document.hidden && director.state.mode === 'live' && setPause(true));
   let lastIntroKey = null;
   let soundOn = false; // 使用者點過一次之後才能出聲
   director.onChange((st) => {

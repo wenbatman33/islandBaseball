@@ -30,6 +30,18 @@
       <div id="dip"></div>
       <div id="flash"><span>PLAY BALL</span></div>
       <button id="mute-toggle" type="button" title="靜音／開聲音（M 鍵）"><kbd>M</kbd><span>聲音開</span></button>
+      <button id="pause-toggle" type="button" title="暫停／繼續（Esc 鍵）"><kbd>Esc</kbd><span>暫停</span></button>
+      <div id="pause-screen" hidden>
+        <div class="ps-box">
+          <h2>暫停中</h2>
+          <p class="ps-score"></p>
+          <div class="ps-btns">
+            <button type="button" id="ps-resume">繼續比賽</button>
+            <button type="button" id="ps-reselect">重選球隊</button>
+          </div>
+          <small class="ps-tip">按 Esc 也可以繼續</small>
+        </div>
+      </div>
     </div>
     <div id="dev-export">
       <p>已複製到剪貼簿。把這段貼給 Claude 並說「鎖定」，數值就會寫回原始碼。</p>

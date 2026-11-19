@@ -235,6 +235,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   let gt = 0;
   let started = false;
   let paused = false;
+  let held = false; // 玩家按了暫停
   let timer = null;
   let camMode = 'plate';
   let batter = null;
@@ -565,10 +566,24 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     lastPitch = `${plan.name} ${Math.round(plan.kmh)} km/h`;
     ui.pitchInfo(lastPitch);
     const res = userBatting() ? userSwingResult() : aiSwing;
-    if (res.type === 'take') callPitch(outsideZone(pitch.T) <= 0.04 ? 'strike' : 'ball');
+    if (res.type === 'take' && hitsBatter(pitch.T)) hitByPitch();
+    else if (res.type === 'take') callPitch(outsideZone(pitch.T) <= 0.04 ? 'strike' : 'ball');
     else if (res.type === 'whiff') callPitch('swing');
     else if (res.type === 'foul') foulBall();
     else startPlay(res);
+  }
+
+  // 球有沒有砸到打者：打者站在本壘板旁 0.85 公尺，身體靠本壘板這一側大約在 0.5 公尺的位置
+  function hitsBatter(T) {
+    return !!batter && T.x * -batter.side > 0.5 && T.y > 0.2 && T.y < 1.6;
+  }
+  // 觸身球：沒揮棒被球砸到，直接保送上一壘（不算壞球數）
+  function hitByPitch() {
+    setPhase('call');
+    ui.call('觸身球', 'ball');
+    sfx.pop();
+    refresh();
+    schedule(1.1, () => walk(true));
   }
 
   function callPitch(kind) {
@@ -609,7 +624,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     endPA(1.6);
   }
 
-  function walk() {
+  function walk(hbp = false) {
     // 被擠壘的跑者依序前進
     let runs = 0;
     const b = S.bases;
@@ -629,10 +644,10 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     batter = null;
     for (const r of runners) r.base = b.indexOf(r.player) + 1;
     if (runs) addRuns(runs);
-    armReach(fld(), 2, 0.12);
+    armReach(fld(), 2, hbp ? 0.3 : 0.12); // 砸到人更容易亂
     ui.dip();
     placeRunners();
-    ui.banner({ kicker: batterInfo.name, title: '四壞球保送', sub: runs ? `擠回 ${runs} 分` : '' }, 1.6);
+    ui.banner({ kicker: batterInfo.name, title: hbp ? '觸身球保送' : '四壞球保送', sub: runs ? `擠回 ${runs} 分` : '' }, 1.6);
     sayParts(line.walk(runs), true);
     endPA(1.6);
   }
@@ -830,7 +845,18 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     let tEnd;
     if (out.kind === 'HR') tEnd = Math.min(7.5, fl.path[fl.path.length - 1].t + 1.5);
     else if (!fp) tEnd = fl.path[fl.path.length - 1].t + 1.2;
-    else if (out.kind === 'FLY') tEnd = fp.t + 1.0;
+    else if (out.kind === 'FLY') {
+      tEnd = fp.t + 1.0;
+      // 外野手接殺之後把球傳回內野（有人回本壘就傳本壘，否則傳二壘），不會抱著球站在原地
+      if (OUTFIELD.includes(fp.who) && !inningOver) {
+        const tb = out.sac ? 0 : 2;
+        const d = Math.hypot(fp.point.x - BASES[tb][0], fp.point.z - BASES[tb][1]);
+        const t1 = fp.t + 0.7 + d / 35;
+        throws.push({ t0: fp.t + 0.6, t1, to: BASES[tb] });
+        cover(tb === 0 ? 'C' : 'SS', tb, fp.t + 0.6);
+        tEnd = t1 + 0.7;
+      }
+    }
     else if (out.kind === 'GROUND') {
       if (!out.own) {
         throws.push({ t0: Math.max(fp.t + 0.3, out.tFirst - 0.9), t1: out.tFirst, to: BASES[1] });
@@ -860,6 +886,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     };
   }
 
+  const OUTFIELD = ['LF', 'CF', 'RF'];
   // ── 玩家選壘傳球 ──
   // 跑者 m 跑到第 B 個壘包（4＝本壘）的時間
   function arriveAt(m, B) {
@@ -926,17 +953,23 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (p.set[pos] === p.thrower) pos = B === 2 ? '2B' : 'P';
     return p.set[pos];
   }
-  function chooseBase(p, B) {
+  // 殺不到人也要把球傳回內野：傳到最前面那位跑者要去的壘包前面擋住他，沒人在跑就傳二壘
+  function returnThrow(p) {
+    p.returned = true;
+    const lead = Math.max(0, ...p.movers.filter((m) => !m.out && arriveAt(m, m.to) > p.t).map((m) => m.to));
+    chooseBase(p, Math.max(2, Math.min(4, lead)), true);
+  }
+  function chooseBase(p, B, ret = false) {
     picker.hide();
     p.pick = null;
     if (!B) {
-      p.noMore = true; // 不傳：把球帶回內野
+      p.noMore = true; // 沒有出局機會：不再開選壘，外野手會自己把球回傳（見 manualBall）
       return;
     }
     const [bx, bz] = BASES[B % 4];
     const t0 = p.t + 0.25;
     const t1 = t0 + Math.hypot(bx - p.holder.x, bz - p.holder.z) / TUNE.throwSpeed;
-    p.flying = { B, t0, t1, from: { ...p.holder }, to: [bx, bz] };
+    p.flying = { B, t0, t1, ret, from: { ...p.holder }, to: [bx, bz] };
     p.thrower.face(bx, bz);
     p.thrower.play('throw', 0.3, 'ready');
     const c = coverActor(p, B);
@@ -948,6 +981,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   function resolveThrow(p, th) {
     p.holder = { x: th.to[0], z: th.to[1] };
     if (p.catcherAt) p.thrower = p.catcherAt;
+    if (th.ret) return; // 單純回傳，不判出局
     const m = p.movers.find((x) => !x.out && x.from < th.B && th.B <= x.to);
     if (!m) return;
     if (arriveAt(m, th.B) > th.t1 - 0.02) {
@@ -988,6 +1022,9 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       const d = Math.hypot(f.to[0] - f.from.x, f.to[1] - f.from.z);
       ball.position.set(lerp(f.from.x, f.to[0], k), 1.0 + Math.sin(k * Math.PI) * Math.min(2.2, d * 0.05), lerp(f.from.z, f.to[1], k));
     } else ball.position.set(p.holder.x, 1.0, p.holder.z);
+    // 外野手拿著球、已經沒有出局機會（或根本沒人在跑）：把球傳回內野
+    if (!p.flying && !p.pick && !p.returned && OUTFIELD.includes(fp.who) && p.thrower === p.fielder && t >= fp.t + 0.45
+      && (p.noMore || !stillRunning(p)) && S.outs + p.outsAdd < 3) returnThrow(p);
     // 球在手上、還有跑者在跑：開放選壘（慢動作），時間到自動傳
     if (!p.flying && !p.pick && !p.noMore && t >= fp.t + 0.12 && stillRunning(p) && S.outs + p.outsAdd < 3) openPick(p);
     if (p.pick) {
@@ -1225,7 +1262,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   const ndc = new THREE.Vector2();
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
   const hit = new THREE.Vector3();
-  const active = () => started && !paused && director.state.mode === 'live' && !director.state.free;
+  const active = () => started && !paused && !held && director.state.mode === 'live' && !director.state.free;
 
   function pointerToAim(e) {
     if (camMode !== 'plate') return;
@@ -1347,7 +1384,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   }
 
   function update(rawDt) {
-    if (!started || paused) return;
+    if (!started || paused || held) return;
     const dt = rawDt * TUNE.timeScale;
     gt += dt;
     pt += dt;
@@ -1533,6 +1570,16 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       return { phase, released, visible: ball.visible, ball: ball.getWorldPosition(new THREE.Vector3()).toArray(), hand: h ? h.toArray() : null };
     },
     liveCam,
+    // 玩家暫停／繼續（比賽還沒開始或已結束時不能暫停）；回傳目前是否暫停
+    hold(v) {
+      if (!started || S.over || paused) return held;
+      held = !!v;
+      band(!held);
+      return held;
+    },
+    get held() {
+      return held;
+    },
     setPaused: (v) => {
       paused = v;
       band(!v);

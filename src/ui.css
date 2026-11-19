@@ -35,7 +35,7 @@ body[data-mode='live'] .scrim-bottom { opacity: 0.55; }
   font: italic 700 1.5em/1 var(--display); letter-spacing: 0.06em; }
 .brand i { width: 0.45em; height: 0.45em; background: var(--accent); transform: rotate(45deg); display: block; }
 .brand span { color: var(--accent); }
-.tag { position: absolute; top: 1.6em; right: 7.4em; font: 600 0.95em/1 var(--display); letter-spacing: 0.16em;
+.tag { position: absolute; top: 1.6em; right: 8.8em; font: 600 0.95em/1 var(--display); letter-spacing: 0.16em;
   padding-bottom: 0.45em; border-bottom: 2px solid var(--accent); }
 .tag b { font-family: var(--tc); font-weight: 600; letter-spacing: 0.08em; margin-right: 0.5em; }
 
@@ -232,7 +232,7 @@ body[data-mode='live'] #live { display: block; }
 .pm-row.on { background: rgba(216, 255, 62, 0.16); }
 .pm-row.on kbd { background: var(--accent); color: #10161b; }
 
-.hint { position: absolute; left: 0; right: 0; bottom: 9.4em; text-align: center; font: 500 0.85em/1 var(--tc); letter-spacing: 0.12em;
+.hint { position: absolute; left: 0; right: 0; bottom: 11.6em; text-align: center; font: 500 0.85em/1 var(--tc); letter-spacing: 0.12em;
   color: var(--ink); text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.3s; }
 .hint.show { opacity: 0.9; }
 
@@ -407,7 +407,7 @@ body.instant .swing-fb.show { opacity: 1; }
 .bp-keys { display: block; font-size: 0.75em; opacity: 0.75; margin-top: 0.15em; }
 .bp-bar em { display: block; height: 0.3em; margin-top: 0.45em; border-radius: 0.2em; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
 .bp-bar u { display: block; height: 100%; background: #58f08a; transform-origin: left; }
-@media (max-width: 700px) { .bp-base { width: 4.8em; height: 4.8em; } .bp-bar { top: 3.6em; font-size: 0.9em; } }
+@media (max-width: 700px) { .bp-base { width: 4.8em; height: 4.8em; } .bp-bar { top: 15.4em; font-size: 0.9em; } }
 
 /* ── 觸控操作（手機）：左下搖桿、右下主按鈕、下方球種橫排 ── */
 .tc-stick, .tc-main { position: absolute; display: none; pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -457,6 +457,11 @@ body.touch .batter-card { bottom: auto; top: 0.8em; transform-origin: center top
 }
 /* 觸控時「點一下開啟聲音」的提示移到上方，不蓋住下方的操作 */
 body.touch #sound-hint { bottom: auto; top: 38%; }
+#sound-hint { white-space: nowrap; }
+/* 手機比賽中一定會點畫面操作，提示不用再蓋在球場中間（會壓到牛棚、傳球選單） */
+body.touch[data-mode='live'] #sound-hint { display: none; }
+/* 下方有對戰卡、打者卡，聲音提示一律放到最上面那一排的中間 */
+body:not(.touch) #sound-hint { bottom: auto; top: 0.9em; }
 
 /* ── 比賽中的介面：和標題、對決畫面同一套（Codex 畫的金框面板、按鈕、搖桿與判決美術字，public/ui/）──
    只改外觀，位置與大小沿用上面的規則（DEV 拖曳版面照舊） */
@@ -656,7 +661,7 @@ body.touch .pen-btn { right: max(1.6em, env(safe-area-inset-right)); bottom: 12e
 .bp-cancel { display: block; margin: 0.8em auto 0; padding: 0.6em 2em; cursor: pointer; font: 900 0.95em/1 var(--tc); letter-spacing: 0.2em; color: #dfe6ff;
   background: linear-gradient(rgba(255, 255, 255, 0.18), transparent 50%), #27408f; border: 0.14em solid #050a20; box-shadow: 0 0 0 0.1em #6f86d6; border-radius: 99px; }
 @media (max-width: 700px) {
-  body.touch .pen-btn { right: 0.8em; bottom: 19em; font-size: 0.85em; padding: 0.5em 0.8em 0.4em; }
+  body.touch .pen-btn { right: 0.8em; bottom: 23em; font-size: 0.85em; padding: 0.5em 0.8em 0.4em; }
   .bp-box { font-size: 0.85em; }
   .hud-duel .pc-en u { width: 3.4em; }
   .hud-duel .pc-en { justify-content: flex-end; }
@@ -974,4 +979,41 @@ body.touch .pen-btn { right: max(1.6em, env(safe-area-inset-right)); bottom: 12e
   .vs-chip > b { font-size: 0.56rem; letter-spacing: 0; text-indent: 0; }
   .vs-chip.you::before, .vs-chip.foe::before { font-size: 0.5rem; padding: 0.2em 0.5em; }
   .vs-chip.you::before { content: '你'; }
+}
+
+/* ══ 暫停 ══ */
+#pause-toggle { position: absolute; right: 9em; top: 1.2em; pointer-events: auto; cursor: pointer; display: none; align-items: center; gap: 0.5em;
+  padding: 0.45em 0.7em; font: 700 0.85em/1 var(--tc); letter-spacing: 0.08em; color: #fff; border-radius: 99px;
+  background: linear-gradient(rgba(255, 255, 255, 0.18), transparent 50%), #1a2c74; border: 2px solid #050a20; box-shadow: 0 0 0 2px #6f86d6; }
+#pause-toggle kbd { font: 700 0.9em/1 var(--display); padding: 0.2em 0.4em; border-radius: 0.2em; background: var(--accent); color: #10161b; }
+#pause-toggle:hover { box-shadow: 0 0 0 2px var(--accent); }
+body[data-mode='live'] #pause-toggle { display: flex; }
+body:has(.final.show) #pause-toggle { display: none; }
+/* 比賽中多了暫停鈕，賽事標題再往左讓 */
+body[data-mode='live'] .tag { right: 16.6em; }
+#pause-screen { position: fixed; inset: 0; z-index: 58; display: grid; place-items: center; pointer-events: auto;
+  background: radial-gradient(circle at 50% 40%, rgba(18, 35, 90, 0.72), rgba(5, 10, 32, 0.9)); backdrop-filter: blur(3px); }
+#pause-screen[hidden] { display: none; }
+.ps-box { display: flex; flex-direction: column; align-items: center; gap: 1.1em; min-width: 22em; padding: 1.4em 2.2em 1.2em; text-align: center; color: #fff;
+  border: 1em solid transparent; border-image: url('/ui/panel.webp') 52 fill / 0.95em stretch; animation: bp-in 0.25s both; }
+.ps-box h2 { margin: 0; font: 900 3em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.18em; text-indent: 0.18em; color: var(--accent);
+  -webkit-text-stroke: 0.12em #050a20; paint-order: stroke fill; }
+.ps-score { margin: 0; display: flex; align-items: center; gap: 0.7em; font: 700 1em/1 var(--tc); }
+.ps-score b { font: italic 900 2em/1 var(--display); color: var(--accent); }
+.ps-score i { font-style: normal; font-size: 0.8em; padding: 0.35em 0.8em; border-radius: 99px; background: #050a20; box-shadow: inset 0 0 0 0.1em #6f86d6; color: #c9d6ff; }
+.ps-btns { display: flex; gap: 1em; }
+.ps-btns button { padding: 0.7em 1.8em 0.62em; cursor: pointer; white-space: nowrap; font: 900 1.05em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.2em; text-indent: 0.2em; color: #fff;
+  border: 0.16em solid #050a20; border-radius: 99px; box-shadow: 0 0 0 0.12em #fff3, 0 0.3em 0 #050a20; }
+#ps-resume { background: linear-gradient(rgba(255, 255, 255, 0.3), transparent 50%), linear-gradient(#ff5a3c, #c41a12); }
+#ps-reselect { background: linear-gradient(rgba(255, 255, 255, 0.28), transparent 50%), linear-gradient(#2b47a6, #14246a); }
+.ps-btns button:hover { filter: brightness(1.12); translate: 0 -2px; }
+.ps-tip { font: 700 0.75em/1 var(--tc); color: #c9d6ff; letter-spacing: 0.12em; }
+body.touch .ps-tip, body.touch #pause-toggle kbd { display: none; }
+@media (max-width: 700px) {
+  /* 手機直式：暫停鈕放在聲音鈕正下方 */
+  #pause-toggle { top: 17.6em; right: 0.7em; padding: 0.45em 0.7em; font-size: 0.75em; }
+  .ps-box { min-width: 0; width: 86vw; padding: 1em 0.6em; }
+  .ps-box h2 { font-size: 2.4em; }
+  .ps-btns { width: 100%; gap: 0.6em; }
+  .ps-btns button { flex: 1; padding: 0.8em 0.3em; }
 }
