@@ -21,7 +21,7 @@ export function buildHud(root) {
   const chip = (t) => emblemHTML(t, 'sm');
   const dots = (n, on) => Array.from({ length: n }, (_, i) => `<i class="${i < on ? 'on' : ''}"></i>`).join('');
 
-  function render({ S, away, home, batter, batTeam, order, today, pitcher, fldTeam, pitchCount, lastPitch }) {
+  function render({ S, away, home, batter, batTeam, order, today, pitcher, fldTeam, pitchCount, lastPitch, energy = 100, rattle = 0 }) {
     elBug.innerHTML = `
       <div class="sb-teams">
         <div class="sb-team ${S.half === 0 ? 'bat' : ''}">${chip(away)}<b>${away.short}</b><em>${S.score[0]}</em></div>
@@ -35,9 +35,13 @@ export function buildHud(root) {
         <div><span>O</span>${dots(2, S.outs)}</div>
       </div>`;
 
+    // 投手資訊：名字下面一條體力條（一半以下變橘、四分之一以下變紅），混亂時整塊閃、掛上「混亂」
+    const en = Math.round(energy);
+    elPit.classList.toggle('rattled', !!rattle);
     elPit.innerHTML = `
       <span class="face sm" style="--c1:${fldTeam.c1};--c2:${fldTeam.c2}"><img src="${pitcher.face}" alt=""></span>
-      <div><small>投手 · ${pitcher.hand}</small><b>${pitcher.name}</b></div>
+      <div class="pc-main"><small>投手 · ${pitcher.hand}${rattle ? '<i class="pc-rattle">混亂</i>' : ''}</small><b>${pitcher.name}</b>
+        <span class="pc-en ${en < 25 ? 'low' : en < 50 ? 'mid' : ''}" title="體力 ${en}"><u><s style="width:${en}%"></s></u><em>${en}</em></span></div>
       <div class="pc-num"><b>${pitchCount}</b><small>球數</small></div>
       <div class="pc-last">${lastPitch || '—'}</div>`;
 

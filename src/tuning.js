@@ -3,7 +3,7 @@ const L0 = () => ({ x: 0, y: 0, s: 1 });
 const LAY_KEYS = [
   'venue', 'matchup', 'lineup', 'defenseHead', 'pitcher', 'introBar',
   'scorebug', 'batterCard', 'pitcherChip', 'pitchMenu', 'hint', 'banner', 'pitchInfo',
-  'stick', 'mainBtn',
+  'stick', 'mainBtn', 'penBtn', 'armWarn',
 ];
 const layoutTable = () => Object.fromEntries(LAY_KEYS.map((k) => [k, L0()]));
 

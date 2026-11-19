@@ -1,8 +1,10 @@
+import { emblemHTML } from './data.js';
+
 import { PITCHES } from './data.js';
 
 // 玩法相關的畫面元件：球種選單、操作提示、判決文字、結果橫幅、終場畫面
 // 判決文字 → 美術字素材
-const CALL_ART = { 好球: 'call_strike', 壞球: 'call_ball', 揮棒落空: 'call_swing', 界外球: 'call_foul', 三振: 'call_k', 保送: 'call_bb', 安全上壘: 'call_safe', 出局: 'call_out', 全壘打: 'call_hr' };
+const CALL_ART = { 好球: 'call_strike', 壞球: 'call_ball', 揮棒落空: 'call_swing', 界外球: 'call_foul', 三振: 'call_k', 保送: 'call_bb', 安全上壘: 'call_safe', 出局: 'call_out', 全壘打: 'call_hr', 投手亂了: 'call_rattled' };
 
 export function buildGameUI(root) {
   root.insertAdjacentHTML(
@@ -10,6 +12,9 @@ export function buildGameUI(root) {
     `<div class="tc-stick" data-lay="stick"><i></i></div>
      <button type="button" class="tc-main" data-lay="mainBtn"></button>
      <div class="pitch-menu" data-lay="pitchMenu"></div>
+     <button type="button" class="pen-btn" data-lay="penBtn"></button>
+     <div class="bullpen"></div>
+     <div class="arm-warn" data-lay="armWarn"></div>
      <div class="hint" data-lay="hint"></div>
      <div class="bat-help"></div>
      <div class="swing-fb"></div>
@@ -30,6 +35,20 @@ export function buildGameUI(root) {
   const elFinal = root.querySelector('.final');
   const dip = document.getElementById('dip');
   let pick = () => {};
+  const elPen = root.querySelector('.pen-btn');
+  const elBullpen = root.querySelector('.bullpen');
+  const elWarn = root.querySelector('.arm-warn');
+  let penOpen = () => {};
+  let penPick = () => {};
+  elPen.addEventListener('pointerdown', (e) => {
+    if (document.body.classList.contains('dev-drag')) return;
+    e.preventDefault();
+    penOpen();
+  });
+  elBullpen.addEventListener('click', (e) => {
+    const c = e.target.closest('[data-k]');
+    if (c) penPick(c.dataset.k === 'x' ? null : +c.dataset.k);
+  });
   // ── 觸控操作（手機）：左下搖桿瞄準、右下主按鈕。網址加 ?touch=1 可在電腦上強制開啟來測試 ──
   const touchParam = new URLSearchParams(location.search).get('touch');
   const touch = touchParam === '1' || (touchParam !== '0' && matchMedia('(pointer: coarse)').matches);
@@ -93,6 +112,53 @@ export function buildGameUI(root) {
   return {
     onPitchPick(fn) {
       pick = fn;
+    },
+    // 投手狀態警示（輪到玩家投球時才顯示）：kind＝'' 不顯示、'tired' 體力過半、'spent' 快沒力、'rattled' 混亂
+    armWarn(kind, canChange) {
+      if (elWarn.dataset.kind === kind && elWarn.dataset.c === String(!!canChange)) return;
+      elWarn.dataset.kind = kind;
+      elWarn.dataset.c = String(!!canChange);
+      elWarn.classList.toggle('show', !!kind);
+      if (!kind) return;
+      const msg = {
+        tired: ['投手累了', '球速變慢、控球變差'],
+        spent: ['投手快沒力了', '球速大幅下降，隨時可能亂掉'],
+        rattled: ['投手混亂中', '準星會亂晃、球不受控制，拿到出局數才會恢復'],
+      }[kind];
+      elWarn.innerHTML = `<b>${msg[0]}</b><span>${msg[1]}</span>${canChange ? `<em>${touch ? '點右邊「換投手」' : '按 P 換投手'}</em>` : ''}`;
+    },
+    onPenOpen(fn) {
+      penOpen = fn;
+    },
+    // 「換投手」按鈕：n＝牛棚還有幾個人（0＝不顯示）
+    penButton(n) {
+      const show = n > 0;
+      if (elPen.classList.contains('show') !== show) elPen.classList.toggle('show', show);
+      if (show && elPen.dataset.n !== String(n)) {
+        elPen.dataset.n = n;
+        elPen.innerHTML = `換投手<small>牛棚 ${n} 人${touch ? '' : '　按 P'}</small>`;
+      }
+    },
+    // 牛棚選單：list 為 null 時關閉。cur＝目前投手的狀態（顯示他還剩多少體力）
+    bullpen(list, cur, cb) {
+      elBullpen.classList.toggle('show', !!list);
+      if (!list) return;
+      penPick = cb;
+      const pct = Math.round(cur.energy);
+      elBullpen.innerHTML = `
+        <div class="bp-box">
+          <img class="seg-head" src="ui/head_bullpen.webp" alt="更換投手" onerror="this.remove()">
+          <div class="bp-cur">目前投手　<b>${cur.p.name}</b><span class="bp-en ${pct < 25 ? 'low' : pct < 50 ? 'mid' : ''}"><u><s style="width:${pct}%"></s></u>體力 ${pct}</span>${cur.rattle ? '<i>混亂中</i>' : ''}</div>
+          <div class="bp-list">${list.map((p, i) => `
+            <button type="button" class="bp-card" data-k="${i}">
+              <span class="face lg"><img src="${p.face}" alt=""><i>${p.no}</i></span>
+              <b>${p.name}</b>
+              <small>${p.hand}　OVR <em>${p.ovr}</em></small>
+              <dl><div><dt>體力</dt><dd>${p.stamina}</dd></div><div><dt>控球</dt><dd>${p.control}</dd></div><div><dt>球威</dt><dd>${p.stuff}</dd></div><div><dt>最快</dt><dd>${p.maxKmh}</dd></div></dl>
+              <span class="bp-pitches">${p.pitches.map(([n, g]) => `<span>${n}<b class="g g-${g}">${g}</b></span>`).join('')}</span>
+            </button>`).join('')}</div>
+          <button type="button" class="bp-cancel" data-k="x">先不換</button>
+        </div>`;
     },
     touch,
     // 搖桿目前的方向（-1～1；沒在推是 0）
@@ -178,20 +244,62 @@ export function buildGameUI(root) {
     dip() {
       retrigger(dip, 'go');
     },
-    final({ S, away, home }) {
-      const [a, h] = S.score;
-      const verdict = a === h ? '平手' : h > a ? `${home.name} 獲勝` : `${away.name} 獲勝`;
-      const row = (t, i) =>
-        `<div class="fn-row ${S.score[i] > S.score[1 - i] ? 'win' : ''}"><i class="emblem" style="--c1:${t.c1};--c2:${t.c2}">${t.glyph}</i><b>${t.name}</b><span>${S.hits[i]} 安打</span><em>${S.score[i]}</em></div>`;
+    // 賽後畫面：依玩家那一隊（user：0 客隊、1 主隊）贏、輸或平手，放那一隊的賽後插畫、結果的美術字與逐局比分
+    final({ S, away, home, user = 1 }) {
+      const teams = [away, home];
+      const mine = teams[user];
+      const d = S.score[user] - S.score[1 - user];
+      const outcome = d > 0 ? 'win' : d < 0 ? 'lose' : 'tie';
+      const art = outcome === 'tie' ? 'teams/result/tie.jpg' : `teams/result/${outcome}_${mine.id}.jpg`;
+      const word = { win: '勝利！', lose: '惜敗', tie: '平手' }[outcome];
+      const say = {
+        win: `${mine.name}拿下這場勝利！`,
+        lose: `${teams[1 - user].name}帶走勝利，下一場討回來。`,
+        tie: '雙方握手言和，勝負留到下次再分。',
+      }[outcome];
+      const n = Math.max(S.regulation || 0, S.lines[0].length, S.lines[1].length);
+      const cells = (i) => Array.from({ length: n }, (_, k) => `<td>${S.lines[i][k] ?? (k < S.inning ? 0 : '')}</td>`).join('');
+      const row = (t, i) => `
+        <tr class="${S.score[i] > S.score[1 - i] ? 'win' : ''} ${i === user ? 'me' : ''}">
+          <th>${emblemHTML(t)}<b>${t.name}</b>${i === user ? '<i>你</i>' : ''}</th>${cells(i)}<td class="r">${S.score[i]}</td><td>${S.hits[i]}</td>
+        </tr>`;
       elFinal.innerHTML = `
-        <div class="fn-box">
-          <div class="p-kicker">FINAL · 比賽結束${S.inning > S.regulation ? ` · 延長至第 ${S.inning} 局` : ''}</div>
-          <h2>${verdict}</h2>
-          ${row(away, 0)}${row(home, 1)}
-          <button type="button" id="again">再來一場</button>
+        <div class="result ${outcome}" style="--c1:${mine.c1};--c2:${mine.c2}">
+          <img class="rs-art" src="${art}" alt="">
+          <i class="rs-fx"></i>
+          <img class="rs-word" src="ui/result_${outcome}.webp" alt="${word}">
+          <div class="rs-board">
+            <div class="rs-kicker">FINAL　比賽結束${S.inning > (S.regulation || n) ? `　延長至第 ${S.inning} 局` : ''}</div>
+            <table>
+              <thead><tr><th></th>${Array.from({ length: n }, (_, k) => `<td>${k + 1}</td>`).join('')}<td class="r">R</td><td>H</td></tr></thead>
+              <tbody>${row(away, 0)}${row(home, 1)}</tbody>
+            </table>
+            <p>${say}</p>
+          </div>
+          <div class="rs-btns"><button type="button" id="again">再戰一場</button><button type="button" id="reselect">重選球隊</button></div>
         </div>`;
+      // 這一隊的賽後插畫還沒有的話，退回用對決畫面那張故事插畫
+      const img = elFinal.querySelector('.rs-art');
+      img.onerror = () => {
+        img.onerror = null;
+        img.src = mine.art;
+      };
+      const wordImg = elFinal.querySelector('.rs-word');
+      wordImg.onerror = () => wordImg.replaceWith(Object.assign(document.createElement('h2'), { className: 'rs-word', textContent: word }));
       elFinal.classList.add('show');
-      elFinal.querySelector('#again').addEventListener('click', () => location.reload());
+      const go = (keepTeams) => {
+        const q = new URLSearchParams(location.search);
+        q.delete('end');
+        q.delete('home');
+        q.delete('away');
+        if (keepTeams) {
+          q.set('home', home.id);
+          q.set('away', away.id);
+        }
+        location.search = q.toString();
+      };
+      elFinal.querySelector('#again').addEventListener('click', () => go(true));
+      elFinal.querySelector('#reselect').addEventListener('click', () => go(false));
     },
   };
 }

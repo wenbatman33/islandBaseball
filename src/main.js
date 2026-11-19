@@ -209,6 +209,14 @@ async function start() {
     scene, camera, canvas, data: GAME, hud, ui, scoreboard: stadium.userData.scoreboard, director,
   });
   window.__game = game;
+  // 預覽賽後畫面（不用真的打完一場）：網址加 ?end=win、?end=lose 或 ?end=tie
+  const endPreview = q.get('end');
+  if (['win', 'lose', 'tie'].includes(endPreview)) {
+    const sc = { win: [2, 5], lose: [6, 3], tie: [4, 4] }[endPreview];
+    const lines = { win: [[0, 2, 0], [1, 0, 4]], lose: [[3, 0, 3], [0, 2, 1]], tie: [[1, 3, 0], [2, 0, 2]] }[endPreview];
+    liveEl.style.display = 'block';
+    ui.final({ S: { score: sc, lines, hits: endPreview === 'lose' ? [10, 6] : [6, 9], inning: 3, regulation: 3 }, away: GAME.away, home: GAME.home, user: 1 });
+  }
   window.__dbg = { camera, controls, director, renderer, scene }; // 檢查用
   director.setAnchors(game.anchors);
   director.setLiveCam(game.liveCam);

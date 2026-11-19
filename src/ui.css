@@ -546,6 +546,142 @@ body.touch #sound-hint { bottom: auto; top: 38%; }
 #mute-toggle, #dev-toggle { background: linear-gradient(rgba(255, 255, 255, 0.18), transparent 50%), #1a2c74; border: 2px solid #050a20; box-shadow: 0 0 0 2px #6f86d6; color: #fff; border-radius: 99px; font-weight: 700; }
 #flash span { color: #fff; background: linear-gradient(#ff6a3a, var(--hot)); font-weight: 900; -webkit-text-stroke: 0.06em #050a20; paint-order: stroke fill; box-shadow: 0 0 0 0.05em var(--accent), 0 0.08em 0 0.05em #050a20; }
 
+/* ── 賽後畫面：整張賽後插畫鋪滿，上面是結果的美術字、逐局比分與兩顆按鈕；贏球飄彩帶，輸球下雨 ── */
+.final { position: fixed; z-index: 55; background: #050a20; }
+.result { position: absolute; inset: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2vh; padding: 0 3vw 4vh; font-family: 'Noto Sans TC', var(--tc); color: #fff; }
+.rs-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; animation: rs-push 14s ease-out both; }
+@keyframes rs-push { from { transform: scale(1.14); } to { transform: scale(1.02); } }
+.result::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(rgba(5, 10, 32, 0.25), transparent 30%, transparent 45%, rgba(5, 10, 32, 0.82) 88%); }
+.result.lose .rs-art { filter: saturate(0.72) brightness(0.86); }
+.rs-fx { position: absolute; inset: -20% 0 0 0; z-index: 1; pointer-events: none; }
+/* 贏球：彩帶紙花 */
+.result.win .rs-fx { background:
+    radial-gradient(circle, #ffd92e 0 4px, transparent 5px) 0 0 / 170px 210px,
+    radial-gradient(circle, #e8372c 0 3.5px, transparent 4.5px) 60px 80px / 230px 190px,
+    radial-gradient(circle, #fff 0 3px, transparent 4px) 110px 30px / 140px 250px,
+    radial-gradient(circle, #49c4ff 0 3.5px, transparent 4.5px) 20px 140px / 260px 220px,
+    linear-gradient(115deg, transparent 49.2%, #ffd92e 49.2% 50.8%, transparent 50.8%) 40px 0 / 190px 160px,
+    linear-gradient(60deg, transparent 49.2%, #ff7a55 49.2% 50.8%, transparent 50.8%) 120px 60px / 240px 200px;
+  animation: rs-confetti 6s linear infinite; }
+@keyframes rs-confetti { to { background-position: 30px 420px, 110px 460px, 80px 530px, -30px 580px, 90px 320px, 60px 460px; } }
+/* 輸球：斜斜的雨絲 */
+.result.lose .rs-fx { opacity: 0.55; background: repeating-linear-gradient(105deg, transparent 0 22px, rgba(190, 215, 255, 0.5) 22px 23px, transparent 23px 61px); background-size: 320px 320px; animation: rs-rain 0.5s linear infinite; }
+@keyframes rs-rain { to { background-position: -86px 320px; } }
+.rs-word { position: relative; z-index: 2; width: min(46vw, 62vh, 620px); height: auto; margin-bottom: auto; margin-top: 3vh; filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.6));
+  animation: tt-slam 0.7s cubic-bezier(0.2, 1.5, 0.4, 1) both, tt-float 3.2s 0.7s ease-in-out infinite alternate; }
+h2.rs-word { width: auto; font-weight: 900; font-size: clamp(3rem, 16vh, 8rem); line-height: 1; color: var(--accent); -webkit-text-stroke: 0.14em #050a20; paint-order: stroke fill; }
+/* 輸球的字放小一點、靠右上，不要蓋住畫面裡那個人 */
+.result.lose .rs-word { width: min(32vw, 44vh, 440px); align-self: flex-end; margin-right: 3vw; animation: rs-sink 1s ease-out both; }
+body:has(.final.show) #sound-hint { display: none; }
+@keyframes rs-sink { from { opacity: 0; transform: translateY(-6vh); } }
+.rs-board { position: relative; z-index: 2; width: min(44em, 94vw); padding: 0.5em 1em 0.6em; border: 0.9em solid transparent; border-image: url('/ui/panel.webp') 52 fill / 1em stretch;
+  filter: drop-shadow(0 0.6em 0.8em rgba(0, 0, 0, 0.6)); animation: bp-in 0.4s 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.rs-kicker { font: italic 800 0.9em/1 'Barlow Condensed', var(--display); letter-spacing: 0.2em; color: var(--accent); margin-bottom: 0.5em; }
+.rs-board table { width: 100%; border-collapse: collapse; }
+.rs-board td, .rs-board th { padding: 0.32em 0.4em; text-align: center; font: italic 800 1.25em/1 'Barlow Condensed', var(--display); }
+.rs-board thead td { font-size: 0.9em; color: #c9d6ff; border-bottom: 2px solid rgba(255, 217, 46, 0.35); }
+.rs-board tbody th { display: flex; align-items: center; gap: 0.5em; text-align: left; font: 900 1.05em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.05em; white-space: nowrap; }
+.rs-board tbody th .emblem { font-size: 0.85em; border-color: #fff; }
+.rs-board tbody th i { padding: 0.2em 0.5em; font: 900 0.6em/1.1 var(--tc); font-style: normal; color: var(--navy); background: var(--accent); border-radius: 99px; }
+.rs-board tbody tr { opacity: 0.72; }
+.rs-board tbody tr.win { opacity: 1; background: linear-gradient(90deg, rgba(255, 217, 46, 0.3), rgba(255, 217, 46, 0.05)); }
+.rs-board td.r { font-size: 1.9em; color: #fff; padding-inline: 0.5em; }
+.rs-board tr.win td.r { color: var(--accent); text-shadow: 0 0.07em 0 #050a20; }
+.rs-board p { margin: 0.6em 0 0; text-align: center; font-weight: 900; font-size: 1.05em; letter-spacing: 0.06em; }
+.rs-btns { position: relative; z-index: 2; display: flex; gap: 1.2em; animation: bp-in 0.4s 0.8s both; }
+.rs-btns button { padding: 0.7em 2em 0.62em; cursor: pointer; font: 900 1.1em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.2em; text-indent: 0.2em; color: #fff; border: 0.16em solid #050a20; border-radius: 99px;
+  background: linear-gradient(rgba(255, 255, 255, 0.45), transparent 48%), linear-gradient(#ff6a3a, var(--hot) 60%, #b81d1d); box-shadow: 0 0 0 0.12em var(--accent), 0 0.3em 0 #050a20; text-shadow: 0 0.08em 0 #050a20; }
+.rs-btns #reselect { background: linear-gradient(rgba(255, 255, 255, 0.28), transparent 50%), linear-gradient(#2b47a6, #14246a); }
+.rs-btns button:hover { filter: brightness(1.12); translate: 0 -2px; }
+@media (max-width: 700px) {
+  .result { padding: 0 3vw 3vh; gap: 1.6vh; font-size: clamp(11px, 3.3vw, 14px); }
+  .rs-word { width: 66vw; margin-top: 2vh; }
+  .result.lose .rs-word { width: 50vw; }
+  .rs-board td, .rs-board th { padding: 0.3em 0.2em; }
+  .rs-btns { width: 100%; }
+  .rs-btns button { flex: 1; padding: 0.8em 0.4em; }
+}
+
+/* ── 投手體力、混亂、換投手 ── */
+/* 體力條：名字下面一條；一半以下變橘、四分之一以下變紅並閃爍 */
+.pc-en { display: flex; align-items: center; gap: 0.4em; margin-top: 0.25em; }
+.pc-en u, .bp-en u { display: block; width: 5.4em; height: 0.5em; border-radius: 1em; background: #050a20; box-shadow: inset 0 0 0 0.07em #5d72bd; overflow: hidden; text-decoration: none; }
+.pc-en s, .bp-en s { display: block; height: 100%; border-radius: 1em; text-decoration: none; transition: width 0.4s;
+  background: linear-gradient(rgba(255, 255, 255, 0.6), transparent 55%), linear-gradient(90deg, #38d8ff, #7dffb0); }
+.pc-en.mid s, .bp-en.mid s { background: linear-gradient(rgba(255, 255, 255, 0.6), transparent 55%), linear-gradient(90deg, #ff9a1e, var(--accent)); }
+.pc-en.low s, .bp-en.low s { background: linear-gradient(rgba(255, 255, 255, 0.5), transparent 55%), linear-gradient(90deg, #b81d1d, var(--hot)); animation: en-low 0.6s steps(2) infinite; }
+@keyframes en-low { 50% { opacity: 0.45; } }
+.pc-en em { font: italic 800 0.8em/1 var(--display); color: #c9d6ff; font-style: italic; }
+.pc-en.low em { color: #ff8a70; }
+/* 混亂：整塊投手資訊搖晃、亮紫紅色，名字旁邊掛「混亂」 */
+.pc-rattle { display: inline-block; margin-left: 0.5em; padding: 0.2em 0.6em 0.16em; font: 900 1em/1 var(--tc); font-style: normal; letter-spacing: 0.1em; color: #fff;
+  background: linear-gradient(#ff5ad0, #b0209a); border-radius: 0.4em; box-shadow: 0 0 0 0.1em #050a20, 0 0 0.7em #ff5ad0; animation: rattle-tag 0.35s steps(2) infinite; }
+@keyframes rattle-tag { 50% { transform: rotate(-6deg) scale(1.08); } }
+.pitcher-chip.rattled { animation: rattle-chip 0.22s linear infinite; filter: drop-shadow(0 0 0.6em #ff5ad0) drop-shadow(0 0.35em 0.45em rgba(0, 0, 0, 0.55)); }
+.hud-top .pitcher-chip.rattled { filter: none; }
+@keyframes rattle-chip { 0%, 100% { translate: 0 0; } 25% { translate: 0.08em -0.06em; } 50% { translate: -0.07em 0.05em; } 75% { translate: 0.05em 0.07em; } }
+/* 投手狀態警示：畫面上方中央一條，橘＝累了、紅＝快沒力、紫紅＝混亂 */
+/* 置中用左右留白加自動邊界（版面微調工具會寫行內的 translate，不能拿來置中） */
+.arm-warn { position: absolute; left: 0; right: 0; margin: 0 auto; width: fit-content; top: 7.6em; display: none; align-items: center; gap: 0.9em; padding: 0.55em 1.3em 0.5em; white-space: nowrap;
+  font: 700 0.9em/1 var(--tc); color: #fff; border: 0.14em solid #050a20; border-radius: 99px; box-shadow: 0 0 0 0.12em var(--warn), 0 0.25em 0.5em rgba(0, 0, 0, 0.5);
+  background: linear-gradient(rgba(255, 255, 255, 0.22), transparent 50%), linear-gradient(90deg, color-mix(in srgb, var(--warn) 85%, #000), color-mix(in srgb, var(--warn) 45%, #050a20));
+  --warn: #ff9a1e; transform-origin: center top; animation: warn-in 0.3s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+.arm-warn.show { display: flex; }
+.arm-warn[data-kind='spent'] { --warn: #e8372c; animation: warn-in 0.3s both, warn-pulse 0.7s 0.3s ease-in-out infinite; }
+.arm-warn[data-kind='rattled'] { --warn: #d83ab8; animation: warn-in 0.3s both, warn-shake 0.22s 0.3s linear infinite; }
+@keyframes warn-shake { 0%, 100% { rotate: 0deg; } 25% { rotate: 0.8deg; } 75% { rotate: -0.8deg; } }
+.arm-warn b { font-weight: 900; font-size: 1.15em; letter-spacing: 0.1em; text-shadow: 0 0.07em 0 #050a20; }
+.arm-warn b::before { content: '!'; display: inline-grid; place-items: center; width: 1.25em; height: 1.25em; margin-right: 0.5em; border-radius: 50%; font: italic 900 1em/1 var(--display); color: #050a20; background: #fff; }
+.arm-warn span { color: #ffeede; }
+.arm-warn em { padding: 0.3em 0.8em 0.25em; font-style: normal; font-weight: 900; color: var(--navy); background: linear-gradient(#fff6b0, var(--accent)); border-radius: 99px; box-shadow: 0 0.1em 0 #050a20; }
+@keyframes warn-in { from { opacity: 0; scale: 0.6; } }
+@keyframes warn-pulse { 50% { box-shadow: 0 0 0 0.12em var(--warn), 0 0 1.4em var(--warn); } }
+@media (max-width: 700px) {
+  .arm-warn { top: 17.6em; left: 0.7em; right: 0.7em; width: auto; flex-wrap: wrap; gap: 0.3em 0.7em; white-space: normal; border-radius: 0.9em; font-size: 0.8em; padding: 0.5em 0.9em; }
+  .arm-warn span { flex: 1 1 100%; order: 3; line-height: 1.35; }
+}
+/* 換投手按鈕 */
+.pen-btn { position: absolute; right: 1.75em; bottom: 2em; display: none; pointer-events: auto; cursor: pointer; padding: 0.6em 1.2em 0.5em; text-align: center;
+  font: 900 1em/1.1 var(--tc); letter-spacing: 0.1em; color: #fff; border: 0.14em solid #050a20; border-radius: 0.8em;
+  background: linear-gradient(rgba(255, 255, 255, 0.28), transparent 50%), linear-gradient(#2b47a6, #14246a); box-shadow: 0 0 0 0.12em var(--accent), 0 0.25em 0 #050a20; transform-origin: right bottom; }
+.pen-btn.show { display: block; }
+.pen-btn small { display: block; margin-top: 0.3em; font: 700 0.62em/1 var(--tc); letter-spacing: 0.05em; color: var(--accent); }
+.pen-btn:hover { filter: brightness(1.15); }
+body.touch .pen-btn { right: max(1.6em, env(safe-area-inset-right)); bottom: 12em; }
+/* 牛棚選單 */
+.bullpen { position: absolute; inset: 0; display: none; place-items: center; background: rgba(5, 10, 32, 0.6); pointer-events: auto; z-index: 5; }
+.bullpen.show { display: grid; }
+.bp-box { position: relative; width: min(46em, 94vw); padding: 0.6em 0.8em 0.4em; border: 0.9em solid transparent; border-image: url('/ui/panel.webp') 52 fill / 1em stretch;
+  filter: drop-shadow(0 0.6em 0.8em rgba(0, 0, 0, 0.6)); animation: bp-in 0.25s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes bp-in { from { opacity: 0; scale: 0.85; } }
+.bp-box .seg-head { margin: -2.2em auto 0.2em; height: 3.6em; }
+.bp-cur { display: flex; align-items: center; flex-wrap: wrap; gap: 0.7em; padding-bottom: 0.6em; margin-bottom: 0.7em; border-bottom: 2px solid rgba(255, 217, 46, 0.35); font: 700 0.9em/1 var(--tc); color: #c9d6ff; }
+.bp-cur b { font-size: 1.25em; font-weight: 900; color: #fff; }
+.bp-en { display: inline-flex; align-items: center; gap: 0.5em; }
+.bp-en u { width: 8em; }
+.bp-cur i { padding: 0.25em 0.7em; font-style: normal; font-weight: 900; color: #fff; background: linear-gradient(#ff5ad0, #b0209a); border-radius: 0.4em; }
+.bp-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 0.8em; }
+.bp-card { display: flex; flex-direction: column; align-items: center; gap: 0.4em; padding: 0.9em 0.6em 0.8em; cursor: pointer; color: #fff; font: inherit;
+  background: linear-gradient(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02) 48%), #1a2c74; border: 0.14em solid #050a20; box-shadow: inset 0 0 0 0.08em #6f86d6; border-radius: 0.8em; transition: transform 0.12s; }
+.bp-card:hover { transform: translateY(-0.3em); box-shadow: inset 0 0 0 0.12em var(--accent), 0 0 1em rgba(255, 217, 46, 0.6); }
+.bp-card .face { border: 0.12em solid var(--accent); box-shadow: 0 0 0 0.08em #050a20; }
+.bp-card > b { font: 900 1.5em/1.1 var(--tc); letter-spacing: 0.06em; text-shadow: 0 0.07em 0 #050a20; }
+.bp-card > small { font: 700 0.85em/1 var(--tc); color: #c9d6ff; }
+.bp-card > small em { font: italic 900 1.5em/1 var(--display); color: var(--accent); }
+.bp-card dl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.2em 0.8em; margin: 0.2em 0; width: 100%; text-align: center; }
+.bp-card dt { font: 700 0.68em/1 var(--tc); color: #c9d6ff; }
+.bp-card dd { margin: 0.25em 0 0; font: italic 900 1.3em/1 var(--display); }
+.bp-pitches { display: flex; flex-wrap: wrap; gap: 0.3em; justify-content: center; }
+.bp-pitches span { display: flex; align-items: center; gap: 0.3em; padding: 0.25em 0.3em 0.25em 0.5em; font: 700 0.75em/1 var(--tc); background: #050a20; box-shadow: inset 0 0 0 0.08em #6f86d6; border-radius: 0.3em; }
+.bp-cancel { display: block; margin: 0.8em auto 0; padding: 0.6em 2em; cursor: pointer; font: 900 0.95em/1 var(--tc); letter-spacing: 0.2em; color: #dfe6ff;
+  background: linear-gradient(rgba(255, 255, 255, 0.18), transparent 50%), #27408f; border: 0.14em solid #050a20; box-shadow: 0 0 0 0.1em #6f86d6; border-radius: 99px; }
+@media (max-width: 700px) {
+  body.touch .pen-btn { right: 0.8em; bottom: 19em; font-size: 0.85em; padding: 0.5em 0.8em 0.4em; }
+  .bp-box { font-size: 0.85em; }
+  .hud-duel .pc-en u { width: 3.4em; }
+  .hud-duel .pc-en { justify-content: flex-end; }
+}
+
 /* 電腦與手機橫向：包在外面的兩層不佔版面，三塊資訊照原本各自定位 */
 .hud-top, .hud-duel { display: contents; }
 .hud-vs { display: none; }

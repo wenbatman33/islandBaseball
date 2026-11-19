@@ -129,6 +129,102 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     score: [0, 0], hits: [0, 0], lines: [[0], []],
     batIdx: [0, 0], pitchCount: [0, 0], over: false,
   };
+  // ── 投手狀態：體力、混亂、牛棚 ──
+  // p 目前在投手丘上的人；energy 體力 0～100；rattle 混亂（還要拿幾個出局數才會恢復，0＝正常）；
+  // streak 連續讓幾位打者上壘；pen 還沒上場的後援投手
+  const arm = teams.map((t) => ({ p: t.sp, energy: 100, rattle: 0, streak: 0, pen: [...(t.rp || [])] }));
+  const mound = () => arm[fld()];
+  const fatigue = (m) => (m.energy < 50 ? (50 - m.energy) / 50 : 0); // 體力掉到一半以下才開始影響，0～1
+  // 扣體力：n＝相當於多投了幾球。體力數值高的投手，同樣的負擔扣得比較少（數值 70 大約可以投 50 球，三局的比賽先發大概撐到第二局後半）
+  function tire(t, n) {
+    const m = arm[t];
+    m.energy = Math.max(0, m.energy - (n * 100) / (m.p.stamina * 0.72));
+  }
+  // 會不會陷入混亂：控球差、體力低的投手比較容易；體力歸零一定會亂
+  function rattleCheck(t, chance) {
+    const m = arm[t];
+    if (m.rattle) return;
+    const odds = chance * (1.35 - m.p.control / 100) * (1 + fatigue(m) * 0.8);
+    if (m.energy > 0 && Math.random() > odds) return;
+    m.rattle = 2;
+    setTimeout(() => {
+      if (S.over || !arm[t].rattle) return;
+      ui.call('投手亂了', 'foul'); // 等前一個判決的字卡播完再跳
+      sfx.call(false);
+      refresh();
+    }, 1250);
+  }
+  // 讓打者上壘：load＝相當於幾球的負擔，chance＝這一下讓投手慌掉的基本機率（連續被上壘會再加）
+  function armReach(t, load, chance) {
+    const m = arm[t];
+    tire(t, load);
+    m.streak++;
+    rattleCheck(t, chance + (m.streak >= 2 ? 0.3 : 0));
+  }
+  // 拿到出局數：連續上壘歸零，混亂往恢復走一步（三振直接恢復）
+  function armOut(t, strikeout) {
+    const m = arm[t];
+    m.streak = 0;
+    if (m.rattle) m.rattle = strikeout ? 0 : m.rattle - 1;
+  }
+  // 換投手：t 隊換上牛棚裡第 k 位。原本的投手下場、新投手站上投手丘，體力全滿；下場的人不能再回來
+  function changePitcher(t, k) {
+    const m = arm[t];
+    const np = m.pen.splice(k, 1)[0];
+    if (!np) return null;
+    const old = fielders[t].P;
+    const hand = np.hand === '左投' ? -1 : 1;
+    const a = makeActor({ ...teams[t].kit, skin: np.skin, hair: np.hair, no: np.no, name: np.name, look: np.look, glove: -hand, gear: null });
+    a.hand = hand;
+    a.home = old.home;
+    a.posName = 'P';
+    a.info = np;
+    a.group.position.copy(old.group.position);
+    a.group.rotation.copy(old.group.rotation);
+    a.group.visible = old.group.visible;
+    a.set('idle');
+    root.remove(old.group);
+    root.add(a.group);
+    fielders[t].P = a;
+    Object.assign(m, { p: np, energy: 100, rattle: 0, streak: 0 });
+    S.pitchCount[t] = 0;
+    pitchBack = null;
+    selPitch = 0;
+    ui.dip();
+    ui.banner({ kicker: `${teams[t].name}　更換投手`, title: np.name, sub: `${np.hand}　OVR ${np.ovr}　最快 ${np.maxKmh} km/h`, good: true }, 2.0);
+    refresh();
+    return np;
+  }
+  // 玩家叫出牛棚：只能在選球種的時候（還沒開始投）
+  function openBullpen() {
+    if (phase !== 'select' || !userPitching() || !mound().pen.length || !active()) return;
+    setPhase('pen');
+    ui.pitchMenu(null);
+    ui.hint('');
+    ui.bullpen(mound().pen, mound(), (k) => {
+      ui.bullpen(null);
+      if (k == null || !changePitcher(fld(), k)) return beginPitch(); // 取消：回到選球種
+      setPhase('pre');
+      schedule(1.8, beginPitch);
+    });
+  }
+  // 電腦的調度：投手快沒力、或已經亂掉又累了，就換牛棚裡最強的上來
+  function aiBullpen() {
+    const m = mound();
+    if (userPitching() || !m.pen.length) return false;
+    if (!(m.energy < 22 || (m.rattle && m.energy < 55))) return false;
+    const k = m.pen.reduce((best, p, i) => (p.ovr > m.pen[best].ovr ? i : best), 0);
+    return !!changePitcher(fld(), k);
+  }
+
+  // 混亂時準星會亂晃（玩家投球才看得到）；出手那一刻晃到哪，球就往哪去
+  function wobble() {
+    const m = mound();
+    if (!m.rattle || !userPitching()) return [0, 0];
+    const t = performance.now() / 1000;
+    return [Math.sin(t * 7.3) * 0.1 + Math.sin(t * 13.1) * 0.05, Math.cos(t * 5.9) * 0.08 + Math.sin(t * 11.7) * 0.04];
+  }
+
   const today = new Map();
   const stat = (p) => today.get(p) || today.set(p, { ab: 0, h: 0 }).get(p);
   let phase = 'idle';
@@ -190,7 +286,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       S, away: teams[0], home: teams[1],
       batter: batterInfo, batTeam: teams[bat()], order: S.batIdx[bat()] + 1,
       today: batterInfo ? stat(batterInfo) : null,
-      pitcher: teams[fld()].sp, fldTeam: teams[fld()], pitchCount: S.pitchCount[fld()], lastPitch,
+      pitcher: mound().p, fldTeam: teams[fld()], pitchCount: S.pitchCount[fld()], lastPitch,
+      energy: mound().energy, rattle: mound().rattle,
     });
     scoreboard.draw({ S, away: teams[0], home: teams[1], innings: TUNE.innings });
   }
@@ -252,7 +349,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     lastPitch = '';
     refresh();
     setPhase('pre');
-    schedule(0.7, beginPitch);
+    schedule(aiBullpen() ? 2.2 : 0.7, beginPitch);
   }
 
   function beginPitch() {
@@ -265,7 +362,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     ball.visible = false;
     if (batter) batter.set('stance');
     pitcher().set('idle');
-    const sp = teams[fld()].sp;
+    const sp = mound().p;
     if (userPitching()) {
       setPhase('select');
       ui.pitchMenu(sp.pitches, selPitch, sp.maxKmh);
@@ -313,13 +410,16 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
 
   function finishPlan(sp, idx, target, acc) {
     const [name, g] = sp.pitches[idx];
-    const errMax = 0.34 - sp.control * 0.0022;
-    const err = (1 - acc) * errMax + 0.015;
+    const m = mound();
+    const fat = fatigue(m); // 累了：控球變差、球速變慢
+    const errMax = (0.34 - sp.control * 0.0022) * (1 + fat * 0.9);
+    let err = (1 - acc) * errMax + 0.015;
+    if (m.rattle) err += 0.16 + Math.random() * 0.34; // 混亂：球不受控制，會飄到哪裡不一定
     const a = Math.random() * Math.PI * 2;
     return {
       idx, name, g, acc,
       T: { x: target.x + Math.cos(a) * err, y: target.y + Math.sin(a) * err },
-      kmh: sp.maxKmh * PITCHES[name].speed * (0.95 + 0.03 * acc + Math.random() * 0.02),
+      kmh: sp.maxKmh * PITCHES[name].speed * (0.95 + 0.03 * acc + Math.random() * 0.02) * (1 - fat * 0.08),
     };
   }
 
@@ -328,6 +428,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     released = false;
     ui.pitchMenu(null);
     S.pitchCount[fld()]++;
+    tire(fld(), 1);
+    if (mound().energy <= 12) rattleCheck(fld(), 0.3); // 快沒力了：隨時可能亂掉
     // 上一球投完還沒走回投手板就要投下一球：直接站回去
     if (pitchBack) {
       const p = pitcher();
@@ -478,6 +580,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
 
   function strikeout() {
     S.outs++;
+    armOut(fld(), true);
     stat(batterInfo).ab++;
     removeBatter();
     ui.banner({ kicker: `${batterInfo.name}`, title: '三振出局', sub: `${S.outs} 出局` }, 1.6);
@@ -505,6 +608,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     batter = null;
     for (const r of runners) r.base = b.indexOf(r.player) + 1;
     if (runs) addRuns(runs);
+    armReach(fld(), 2, 0.12);
     ui.dip();
     placeRunners();
     ui.banner({ kicker: batterInfo.name, title: '四壞球保送', sub: runs ? `擠回 ${runs} 分` : '' }, 1.6);
@@ -523,6 +627,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   function addRuns(n) {
     S.score[bat()] += n;
     S.lines[bat()][S.inning - 1] = (S.lines[bat()][S.inning - 1] || 0) + n;
+    tire(fld(), 1.5 * n); // 掉分對投手是額外的負擔
   }
 
   function endPA(delay) {
@@ -595,6 +700,12 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
 
   function switchHalf() {
     const outTeam = fld(); // 這半局守備的隊伍，等一下要跑下場
+    {
+      const m = arm[outTeam]; // 回休息區喘口氣：體力回一點、混亂緩和一級
+      m.energy = Math.min(100, m.energy + 12);
+      m.rattle = Math.max(0, m.rattle - 1);
+      m.streak = 0;
+    }
     runners.forEach((r) => root.remove(r.actor.group));
     runners = [];
     removeBatter();
@@ -639,7 +750,7 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     ui.hint('');
     refresh();
     sfx.cheer(0.5);
-    ui.final({ S, away: teams[0], home: teams[1] });
+    ui.final({ S, away: teams[0], home: teams[1], user: USER });
     sayParts(line.gameOver(S.score[0] === S.score[1] ? null : teams[S.score[0] > S.score[1] ? 0 : 1].name), true);
   }
 
@@ -1036,6 +1147,9 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     }
     if (runs) addRuns(runs);
     const good = out.kind === 'HIT' || out.kind === 'HR';
+    if (out.kind === 'HR') armReach(fld(), 5, 0.5);
+    else if (good) armReach(fld(), 2.5, 0.12);
+    else for (let i = 0; i < Math.max(1, p.outsAdd); i++) armOut(fld(), false);
     sfx.cheer(out.kind === 'HR' ? 1 : good ? 0.6 : 0.3);
     if (good) band.burst(out.kind === 'HR');
     if (out.kind === 'HR') ui.call('全壘打', 'strike'); // 全壘打的大字美術字
@@ -1119,7 +1233,8 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
   const meterScale = () => 3.2 - 2.8 * pt;
   function throwWithMeter(acc) {
     const a = acc ?? 1 - Math.min(1, Math.abs(meterScale() - 1) / 1.2);
-    plan = finishPlan(teams[fld()].sp, selPitch, { x: aim.x, y: aim.y }, a);
+    const [wx, wy] = wobble();
+    plan = finishPlan(mound().p, selPitch, { x: aim.x + wx, y: aim.y + wy }, a);
     ui.hint('');
     startWindup();
   }
@@ -1137,18 +1252,21 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     if (e.key === ' ') {
       e.preventDefault();
       action();
+    } else if (e.key === 'p' || e.key === 'P') {
+      openBullpen();
     } else if (phase === 'select' && e.key >= '1' && e.key <= '4') {
       const n = +e.key - 1;
-      if (n < teams[fld()].sp.pitches.length) {
+      if (n < mound().p.pitches.length) {
         selPitch = n;
-        ui.pitchMenu(teams[fld()].sp.pitches, selPitch, teams[fld()].sp.maxKmh);
+        ui.pitchMenu(mound().p.pitches, selPitch, mound().p.maxKmh);
       }
     }
   });
+  ui.onPenOpen(openBullpen);
   ui.onPitchPick((i) => {
     if (phase === 'select') {
       selPitch = i;
-      ui.pitchMenu(teams[fld()].sp.pitches, selPitch, teams[fld()].sp.maxKmh);
+      ui.pitchMenu(mound().p.pitches, selPitch, mound().p.maxKmh);
     }
   });
 
@@ -1167,10 +1285,11 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     const pitching = phase === 'select' || phase === 'meter';
     aimMark.visible = aimDot.visible = pitching;
     meterRing.visible = phase === 'meter';
-    aimMark.position.set(aim.x, aim.y, 0);
-    aimDot.position.set(aim.x, aim.y, 0);
+    const [wx, wy] = wobble();
+    aimMark.position.set(aim.x + wx, aim.y + wy, 0);
+    aimDot.position.set(aim.x + wx, aim.y + wy, 0);
     if (phase === 'meter') {
-      meterRing.position.set(aim.x, aim.y, 0);
+      meterRing.position.set(aim.x + wx, aim.y + wy, 0);
       meterRing.scale.setScalar(Math.max(0.3, meterScale()));
     }
     const batting = userBatting() && phase !== 'call';
@@ -1321,6 +1440,14 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
     }
     updateWidgets();
     updateTouch(dt);
+    // 「換投手」按鈕：輪到玩家投球、還沒開始投、牛棚還有人的時候才出現
+    ui.penButton(phase === 'select' && userPitching() && active() && camMode === 'plate' ? mound().pen.length : 0);
+    // 投手狀態警示：玩家準備投球時，體力不足或混亂就提醒，並告知可以換投
+    {
+      const m = mound();
+      const show = (phase === 'select' || phase === 'meter') && userPitching() && active() && camMode === 'plate';
+      ui.armWarn(!show ? '' : m.rattle ? 'rattled' : m.energy < 25 ? 'spent' : m.energy < 50 ? 'tired' : '', m.pen.length > 0);
+    }
   }
 
   // 觸控：搖桿推多少、準星就以那個速度移動（放開就停）；主按鈕的文字跟著目前能做的動作換
@@ -1421,6 +1548,13 @@ export function createGame({ scene, camera, canvas, data, hud, ui, scoreboard, d
       play = null;
       switchHalf();
     },
+    // DEV：直接設定目前投手的狀態（體力、混亂），測試用
+    debugArm(o) {
+      Object.assign(mound(), o);
+      refresh();
+      return { ...mound(), p: mound().p.name, pen: mound().pen.map((x) => x.name) };
+    },
+    debugPen: () => openBullpen(),
     debugEnd() {
       if (!started || S.over) return;
       timer = null;
