@@ -1017,3 +1017,49 @@ body.touch .ps-tip, body.touch #pause-toggle kbd { display: none; }
   .ps-btns { width: 100%; gap: 0.6em; }
   .ps-btns button { flex: 1; padding: 0.8em 0.3em; }
 }
+
+/* ══ 球隊故事頁（選隊畫面點「球隊故事」打開）：左圖右文；手機直式改成上圖下文 ══ */
+.vs-story { pointer-events: auto; cursor: pointer; align-self: center; padding: 0.35em 0.9em 0.3em; font: 900 0.82em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.12em; white-space: nowrap; color: #050a20;
+  background: linear-gradient(rgba(255, 255, 255, 0.5), transparent 55%), var(--gold); border: 0.14em solid #050a20; border-radius: 99px; box-shadow: 0 0.16em 0 #050a20; }
+.vs-meta > span { white-space: nowrap; }
+.vs-story:hover { filter: brightness(1.1); translate: 0 -1px; }
+.team-story { position: fixed; inset: 0; z-index: 70; display: flex; background: #0b111c; color: #f4f6ff; font-family: 'Noto Sans TC', var(--tc); animation: ts-in 0.3s both; }
+.team-story.out { opacity: 0; transition: opacity 0.25s; }
+@keyframes ts-in { from { opacity: 0; scale: 1.03; } }
+.ts-art { position: relative; flex: none; height: 100%; aspect-ratio: 1; max-width: 58vw; overflow: hidden; background: #050a20; }
+.ts-art img { width: 100%; height: 100%; object-fit: cover; display: block; animation: ts-art 0.6s ease-out both; }
+@keyframes ts-art { from { scale: 1.08; opacity: 0.4; } }
+.ts-art::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 86%, #0e1630 100%); }
+.ts-text { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2.2vh; padding: 7vh 4vw 4vh 2.4vw; overflow-y: auto;
+  background: radial-gradient(120% 80% at 0% 50%, color-mix(in srgb, var(--c2) 24%, transparent), transparent 60%), linear-gradient(#12235a, #0b1535); border-left: 0.5vh solid var(--gold); }
+.ts-head { display: flex; align-items: center; gap: 2vh; }
+.ts-head .emblem.big { font-size: clamp(1.6rem, 5vh, 3rem); box-shadow: 0 0 0 0.07em var(--gold), 0 0.5vh 1.4vh rgba(0, 0, 0, 0.5); }
+.ts-head small { display: block; font-weight: 900; font-size: clamp(0.62rem, 1.7vh, 0.9rem); letter-spacing: 0.2em; color: var(--gold); }
+.ts-head h2 { margin: 0.4vh 0; font-weight: 900; font-size: clamp(1.7rem, 6.4vh, 3.8rem); line-height: 1.05; letter-spacing: 0.04em; white-space: nowrap; color: #fff; text-shadow: 0 0.07em 0 #050a20; }
+.ts-head span { font-weight: 700; font-size: clamp(0.72rem, 2vh, 1.05rem); letter-spacing: 0.1em; color: #c9d6ff; }
+.ts-tag { align-self: flex-start; padding: 0.5em 1.1em 0.42em; font-weight: 900; font-size: clamp(0.78rem, 2.2vh, 1.15rem); letter-spacing: 0.1em; color: #fff; border-radius: 99px;
+  background: linear-gradient(rgba(255, 255, 255, 0.22), transparent 55%), #e8372c; border: 0.14em solid #050a20; box-shadow: 0 0.18em 0 #050a20; }
+.ts-story { margin: 0; font-weight: 700; font-size: clamp(0.86rem, 2.5vh, 1.3rem); line-height: 1.85; color: #eef1ff; text-wrap: pretty; }
+.ts-line { margin: 0; padding-left: 1em; border-left: 0.3em solid var(--gold); font-weight: 900; font-size: clamp(0.9rem, 2.8vh, 1.45rem); color: var(--gold); }
+.ts-people { display: flex; gap: 1.6vh; }
+.ts-people div { flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr; align-items: baseline; column-gap: 0.7em; padding: 1.4vh 1.8vh; white-space: nowrap;
+  background: #050a20; box-shadow: inset 0 0 0 0.14em #6f86d6; border-radius: 1.4vh; }
+.ts-people span { grid-column: 1 / -1; font-weight: 900; font-size: clamp(0.6rem, 1.6vh, 0.85rem); letter-spacing: 0.18em; color: var(--gold); }
+.ts-people b { font-weight: 900; font-size: clamp(1rem, 3vh, 1.6rem); }
+.ts-people i { font-style: normal; font-weight: 700; font-size: clamp(0.66rem, 1.8vh, 0.95rem); color: #c9d6ff; overflow: hidden; text-overflow: ellipsis; }
+.ts-nav { display: flex; gap: 1.6vh; margin-top: 0.6vh; }
+.ts-nav button, .ts-close { cursor: pointer; font: 900 clamp(0.74rem, 2vh, 1rem)/1 'Noto Sans TC', var(--tc); letter-spacing: 0.14em; color: #fff;
+  background: linear-gradient(rgba(255, 255, 255, 0.2), transparent 55%), #27408f; border: 0.14em solid #050a20; box-shadow: 0 0 0 0.1em #6f86d6; border-radius: 99px; }
+.ts-nav button { flex: 1; padding: 0.8em 0.6em 0.7em; }
+.ts-nav button:hover, .ts-close:hover { filter: brightness(1.2); }
+.ts-close { position: absolute; top: 2.4vh; right: 2.4vh; width: 2.6em; height: 2.6em; padding: 0; z-index: 2; }
+@media (max-width: 700px) {
+  .vs-story { font-size: 0.74em; padding: 0.4em 0.8em 0.34em; }
+  .team-story { flex-direction: column; overflow-y: auto; }
+  .ts-art { width: 100%; height: auto; max-width: none; aspect-ratio: 1; }
+  .ts-line { font-size: 0.92rem; }
+  .vs-meta { flex-wrap: wrap; row-gap: 0.5vh; }
+  .ts-art::after { background: linear-gradient(transparent 82%, #12235a 100%); }
+  .ts-text { flex: none; justify-content: flex-start; gap: 1.6vh; padding: 2vh 5vw 3vh; border-left: 0; border-top: 0.5vh solid var(--gold); overflow: visible; }
+  .ts-people { flex-direction: column; gap: 1vh; }
+}

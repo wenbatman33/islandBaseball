@@ -3,6 +3,10 @@
 // 下方選隊：先點「你的球隊」或「對手」決定要換哪一邊，再點球隊。
 // 網址帶 ?home=<id>&away=<id> 會直接開賽、兩個畫面都不顯示（測試或分享連結用）。
 import { TEAMS, emblemHTML } from './data.js';
+import storyManifest from '../scripts/story_manifest.json';
+
+// 球隊故事（文字與圖卡共用同一份清單）
+const STORIES = Object.fromEntries(storyManifest.items.map((x) => [x.id, x]));
 
 const KEY = 'island.matchup';
 
@@ -72,7 +76,7 @@ function versusScreen() {
         <div class="vs-plate-txt">
           <span class="vs-role">${who === 'home' ? '你的球隊　HOME' : '對手　AWAY'}</span>
           <h2>${t.name}</h2>
-          <div class="vs-meta"><span>${t.record}</span><i>OVR<b>${t.ovr}</b></i></div>
+          <div class="vs-meta"><span>${t.record}</span><i>OVR<b>${t.ovr}</b></i><button type="button" class="vs-story" data-story="${t.id}">球隊故事</button></div>
         </div>
       </div>
       <p class="vs-line">「${t.line}」</p>`;
@@ -119,6 +123,8 @@ function versusScreen() {
       }
     };
     el.addEventListener('click', (e) => {
+      const st = e.target.closest('[data-story]');
+      if (st) return storyScreen(st.dataset.story);
       const chip = e.target.closest('.vs-chip');
       if (chip) {
         const id = chip.dataset.id;
@@ -153,6 +159,60 @@ function versusScreen() {
     render();
     el.querySelector('.vs-mark').classList.add('hit');
   });
+}
+
+// 球隊故事頁：左邊（手機在上面）是故事插畫，右邊是隊徽、隊名、故事與重點人物；可以左右切換八隊
+function storyScreen(id) {
+  const el = document.createElement('div');
+  el.className = 'team-story';
+  const show = (tid) => {
+    const t = TEAMS.find((x) => x.id === tid);
+    const m = STORIES[tid];
+    const [pos, star] = m.star.split(' ');
+    el.dataset.id = tid;
+    el.style.setProperty('--c1', t.c1);
+    el.style.setProperty('--c2', t.c2);
+    el.innerHTML = `
+      <div class="ts-art"><img src="teams/story/${tid}.jpg" alt="${t.name}的球隊故事"></div>
+      <div class="ts-text">
+        <header class="ts-head">${emblemHTML(t, 'big')}<div><small>TEAM STORY　球隊故事</small><h2>${t.name}</h2><span>${m.place}</span></div></header>
+        <b class="ts-tag">${m.style_tag}</b>
+        <p class="ts-story">${m.story}</p>
+        <p class="ts-line">「${t.line}」</p>
+        <div class="ts-people">
+          <div><span>招牌球員</span><b>${star}</b><i>${pos}</i></div>
+          <div><span>王牌投手</span><b>${m.ace}</b><i>本季 ${t.record}</i></div>
+        </div>
+        <nav class="ts-nav"><button type="button" data-go="-1">‹ 上一隊</button><button type="button" data-go="1">下一隊 ›</button></nav>
+      </div>
+      <button type="button" class="ts-close" aria-label="關閉">✕</button>`;
+  };
+  const close = () => {
+    window.removeEventListener('keydown', onKey, true);
+    el.classList.add('out');
+    setTimeout(() => el.remove(), 250);
+  };
+  const step = (d) => {
+    const i = TEAMS.findIndex((x) => x.id === el.dataset.id);
+    show(TEAMS[(i + d + TEAMS.length) % TEAMS.length].id);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowLeft') step(-1);
+    else if (e.key === 'ArrowRight') step(1);
+    else return;
+    e.stopPropagation();
+    e.preventDefault();
+  };
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const go = e.target.closest('[data-go]');
+    if (go) step(+go.dataset.go);
+    else if (e.target.closest('.ts-close')) close();
+  });
+  window.addEventListener('keydown', onKey, true);
+  show(id);
+  document.body.appendChild(el);
 }
 
 export async function chooseTeams() {
