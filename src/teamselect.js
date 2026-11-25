@@ -76,10 +76,11 @@ function versusScreen() {
         <div class="vs-plate-txt">
           <span class="vs-role">${who === 'home' ? '你的球隊　HOME' : '對手　AWAY'}</span>
           <h2>${t.name}</h2>
-          <div class="vs-meta"><span>${t.record}</span><i>OVR<b>${t.ovr}</b></i><button type="button" class="vs-story" data-story="${t.id}">球隊故事</button></div>
+          <div class="vs-meta"><span>${t.record}</span><i>OVR<b>${t.ovr}</b></i></div>
         </div>
       </div>
-      <p class="vs-line">「${t.line}」</p>`;
+      <p class="vs-line">「${t.line}」</p>
+      <button type="button" class="vs-story" data-story="${t.id}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5c3-1.4 6-1.4 9 .4 3-1.8 6-1.8 9-.4v13.5c-3-1.3-6-1.3-9 .5-3-1.8-6-1.8-9-.5z M12 5.4v13.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/></svg>看球隊故事<i>›</i></button>`;
     // 拉鋸條：兩隊在同一條上互推，差距越大推得越過去；交界處有火花。scale＝差多少算壓倒性
     const bar = (label, a, b, fa, fb, scale) => {
       const pct = Math.min(86, Math.max(14, 50 + ((a - b) / scale) * 36));

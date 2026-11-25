@@ -1019,10 +1019,18 @@ body.touch .ps-tip, body.touch #pause-toggle kbd { display: none; }
 }
 
 /* ══ 球隊故事頁（選隊畫面點「球隊故事」打開）：左圖右文；手機直式改成上圖下文 ══ */
-.vs-story { pointer-events: auto; cursor: pointer; align-self: center; padding: 0.35em 0.9em 0.3em; font: 900 0.82em/1 'Noto Sans TC', var(--tc); letter-spacing: 0.12em; white-space: nowrap; color: #050a20;
-  background: linear-gradient(rgba(255, 255, 255, 0.5), transparent 55%), var(--gold); border: 0.14em solid #050a20; border-radius: 99px; box-shadow: 0 0.16em 0 #050a20; }
+/* 「看球隊故事」鈕：放在名牌的台詞下面，夠大、會微微發亮，一眼看得到 */
+.vs-story { position: absolute; top: calc(3.2vh + clamp(5.4rem, 16.5vh, 9.6rem) + 6vh); pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 0.5em;
+  padding: 0.6em 1.1em 0.52em; font: 900 clamp(0.85rem, 2.4vh, 1.25rem)/1 'Noto Sans TC', var(--tc); letter-spacing: 0.12em; white-space: nowrap; color: #050a20;
+  background: linear-gradient(rgba(255, 255, 255, 0.55), transparent 55%), var(--gold); border: 0.15em solid #050a20; border-radius: 99px;
+  box-shadow: 0 0.2em 0 #050a20, 0 0 0 0.12em rgba(255, 255, 255, 0.5); animation: vs-fade 0.4s 0.3s both, vs-story-glow 1.8s 0.8s ease-in-out infinite; }
+.vs-side.you .vs-story { left: 2.4vh; }
+.vs-side.foe .vs-story { right: 2.4vh; }
+.vs-story svg { width: 1.25em; height: 1.25em; flex: none; }
+.vs-story i { font-style: normal; font-size: 1.3em; line-height: 0.7; }
+.vs-story:hover { filter: brightness(1.1); translate: 0 -2px; }
+@keyframes vs-story-glow { 50% { box-shadow: 0 0.2em 0 #050a20, 0 0 0 0.12em #fff, 0 0 1.4em 0.2em rgba(255, 217, 46, 0.75); } }
 .vs-meta > span { white-space: nowrap; }
-.vs-story:hover { filter: brightness(1.1); translate: 0 -1px; }
 .team-story { position: fixed; inset: 0; z-index: 70; display: flex; background: #0b111c; color: #f4f6ff; font-family: 'Noto Sans TC', var(--tc); animation: ts-in 0.3s both; }
 .team-story.out { opacity: 0; transition: opacity 0.25s; }
 @keyframes ts-in { from { opacity: 0; scale: 1.03; } }
@@ -1054,11 +1062,13 @@ body.touch .ps-tip, body.touch #pause-toggle kbd { display: none; }
 .ts-nav button:hover, .ts-close:hover { filter: brightness(1.2); }
 .ts-close { position: absolute; top: 2.4vh; right: 2.4vh; width: 2.6em; height: 2.6em; padding: 0; z-index: 2; }
 @media (max-width: 700px) {
-  .vs-story { font-size: 0.74em; padding: 0.4em 0.8em 0.34em; }
+  /* 手機直式：沒有台詞那一行，按鈕貼在各自名牌旁邊（你的球隊在名牌下面，對手在名牌上面） */
+  .vs-story { font-size: 0.85rem; padding: 0.55em 1em 0.48em; }
+  .vs-side.you .vs-story { top: 13.2vh; left: 3vw; }
+  .vs-side.foe .vs-story { top: auto; bottom: 37.2vh; right: 3vw; }
   .team-story { flex-direction: column; overflow-y: auto; }
   .ts-art { width: 100%; height: auto; max-width: none; aspect-ratio: 1; }
   .ts-line { font-size: 0.92rem; }
-  .vs-meta { flex-wrap: wrap; row-gap: 0.5vh; }
   .ts-art::after { background: linear-gradient(transparent 82%, #12235a 100%); }
   .ts-text { flex: none; justify-content: flex-start; gap: 1.6vh; padding: 2vh 5vw 3vh; border-left: 0; border-top: 0.5vh solid var(--gold); overflow: visible; }
   .ts-people { flex-direction: column; gap: 1vh; }
